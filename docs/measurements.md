@@ -4,10 +4,10 @@ Este arquivo registra as medições realizadas durante a investigação da PCB d
 
 ## Header J3
 
-Convenção de numeração:
+Convenção de numeração confirmada pela serigrafia da PCB:
 
-- J3-1 = pad mais próximo da inscrição `J3`
-- sequência até J3-6
+- **J3-1** = pad quadrado, na extremidade direita;
+- sequência até **J3-6**, na extremidade esquerda.
 
 ### Continuidade com GND — placa desligada
 
@@ -41,19 +41,60 @@ Referência: ponta preta em J3-2 (GND), ponta vermelha nos demais pads.
 | J3-5 | 3,340 V |
 | J3-6 | 1,2 V |
 
-## Interpretação provisória
+## Continuidade direta entre J3 e o módulo REX3B21
 
-J3-1, J3-3, J3-4 e J3-5 estão próximos da tensão lógica de 3,3 V. Isso pode corresponder a uma combinação de:
+Com a placa totalmente desligada, foram testadas as conexões diretas entre J3 e os pinos relevantes do módulo Zigbee REX3B21.
 
-- VCC/VTREF;
-- linhas digitais em estado lógico alto;
-- SWDIO/SWCLK;
-- RESET em idle alto;
-- UART TX/RX em idle alto.
+Resultados confirmados:
 
-**Não é possível distinguir essas funções apenas pela leitura DC.**
+| J3 | Pino REX3B21 | Função |
+|---|---:|---|
+| **J3-1** | **5** | **3,3 V / VCC / VTref** |
+| **J3-2** | **7** | **GND** |
+| **J3-3** | **19** | **RESET** |
+| **J3-4** | **17** | **PA2 / SWDIO** |
+| **J3-5** | **15** | **PA1 / SWCLK** |
+| J3-6 | — | Não identificado |
 
-J3-6 em aproximadamente 1,2 V é atípico para uma linha digital estática de 3,3 V. Pode ser uma linha com atividade rápida cuja média aparece como ~1,2 V no multímetro, um sinal com pull-up/pull-down, ou outra função. Ainda não há identificação.
+Pinout funcional confirmado até agora:
+
+```text
+J3-1 = 3V3 / VTref
+J3-2 = GND
+J3-3 = RESET
+J3-4 = SWDIO
+J3-5 = SWCLK
+J3-6 = desconhecido (~1,2 V quando energizado)
+```
+
+## Conclusão importante
+
+O header **J3 é efetivamente um header de debug/programação SWD do módulo Zigbee REX3B21/EFR32**.
+
+Isso é uma descoberta importante porque fornece acesso direto ao microcontrolador Zigbee sem depender do módulo Wi-Fi CB3S.
+
+Em princípio, esse acesso permite usar um debugger compatível com SWD (por exemplo J-Link ou CMSIS-DAP) para:
+
+- identificar o MCU;
+- consultar o estado de proteção/debug;
+- eventualmente ler a memória flash se a proteção permitir;
+- fazer backup do firmware original;
+- analisar o firmware existente;
+- e, em etapa posterior e somente com backup/entendimento suficiente, gravar outro firmware compatível.
+
+## Sobre J3-6
+
+J3-6 não apresentou continuidade com os pinos 5, 7, 15, 17 ou 19 testados. Quando a placa está energizada, mede aproximadamente **1,2 V** em relação ao GND.
+
+Ainda pode ser:
+
+- SWO;
+- UART TX/RX;
+- outro GPIO de produção/teste;
+- sinal intermediário com resistor/condicionamento;
+- linha com atividade digital cuja tensão média aparece como ~1,2 V no multímetro.
+
+Ainda não identificado.
 
 ## Relação com o REX3B21
 
@@ -67,11 +108,23 @@ A documentação do REX3B21 indica os seguintes sinais relevantes no módulo:
 - pino 17: PA2 / SWDIO
 - pino 19: RESET
 
-Como J3 possui 6 pads e está próximo ao módulo Zigbee, uma hipótese importante é que seja um header de produção/debug contendo VCC, GND, SWDIO, SWCLK, RESET e possivelmente UART/SWO ou outro sinal. **Essa hipótese ainda não foi confirmada por continuidade de trilhas.**
+As medições de continuidade confirmam que J3 expõe diretamente VCC, GND, RESET, SWDIO e SWCLK.
 
 ## Próximos testes recomendados
 
-1. Não aplicar tensão externa em nenhum pad.
-2. Com a placa desligada, testar continuidade entre J3 e os pinos relevantes do REX3B21 (VCC, TXD, RXD, SWCLK, SWDIO e RESET).
-3. Se a identificação por continuidade não for possível, usar analisador lógico ou USB-UART apenas em modo de escuta para verificar atividade nos pads.
-4. Somente após identificar o pinout considerar conexão de debugger ou reflashing.
+1. **Não gravar firmware ainda.**
+2. Usar um debugger SWD compatível com lógica de 3,3 V.
+3. Conectar apenas:
+   - VTref -> J3-1
+   - GND -> J3-2
+   - RESET -> J3-3
+   - SWDIO -> J3-4
+   - SWCLK -> J3-5
+4. Não alimentar a placa pelo debugger; alimentar o MCA pela própria entrada USB e usar J3-1 apenas como referência de tensão, salvo se houver razão técnica específica e verificada para fazer diferente.
+5. Tentar apenas uma operação de identificação/conexão ao MCU inicialmente, sem erase, write ou unlock.
+6. Se a conexão SWD funcionar, registrar:
+   - identificação exata do chip;
+   - estado de lock/debug protection;
+   - tamanho da flash;
+   - possibilidade de leitura sem apagar.
+7. Somente depois considerar dump/backup e qualquer alteração de firmware.
