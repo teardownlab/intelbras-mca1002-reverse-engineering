@@ -338,3 +338,35 @@ mdw 0x0FE0E000 1
 **Status:** CONFIRMED — leitura de DEVINFO funcional e reproduzível em geral. INFERRED — campos de conveniência (FAMILY/FAMILYNUM/MSIZE/MODULENAME) provavelmente não populados por este fabricante de módulo, em vez de indicar erro de leitura. UNKNOWN — confirmação definitiva dessa hipótese; flash size e RAM size reais deste chip continuam não confirmados por nenhuma via até agora.
 
 **Próximo passo:** ponto de decisão apresentado ao responsável do projeto — continuar insistindo nos campos numéricos da DEVINFO (ex.: `DEVINFO_PKGINFO`, `DEVINFO_EUI64`) ou mudar de prioridade (ex.: mapear o início da flash principal em `0x00000000`, ou buscar `EUI-64`/calibração via outros campos, ou seguir para NVM3/bootloader).
+
+**Decisão do responsável do projeto:** ler `EUI-64` a seguir.
+
+---
+
+## 2026-09-05 — Leitura de DEVINFO_EUI64L/H
+
+**Objetivo:** ler o EUI-64 do rádio Zigbee para checar se o OUI bate com um prefixo IEEE conhecido da Silicon Labs/Ember, como teste independente da hipótese de "campos de conveniência não populados pela Rexense".
+
+**Pesquisa prévia:** offsets confirmados no RM oficial (extração raw, seções 6.4.2.13/6.4.2.14): `DEVINFO_EUI64L`=`0x048` (`UNIQUEL`[31:0], 4 bytes menos significativos), `DEVINFO_EUI64H`=`0x04C` (`OUI64`[31:8], 3 bytes do OUI IEEE; `UNIQUEH`[7:0], byte mais significativo do identificador único).
+
+**Comando:**
+
+```tcl
+mdw 0x0FE0E048 2
+```
+
+Classificação: READ-ONLY / SAFE (mesmo `mdw`, via AP0).
+
+**Resultado:**
+
+```text
+0x0fe0e048: 40004018 0000000b
+```
+
+**Interpretação:** `EUI64L`=`0x40004018` (`UNIQUEL`), `EUI64H`=`0x0000000B` → `OUI64`=`0x000000`, `UNIQUEH`=`0x0B`. **EUI-64 completo = `00:00:00:0B:40:00:40:18`.** O OUI `00:00:00` **não é um OUI real da Silicon Labs/Ember**. Um rádio Zigbee em produção precisa de um EUI-64 único e válido para operar na rede — este valor parece não-provisionado ou incorreto.
+
+Isso é o **quarto** campo seguido (depois de `FAMILY`/`FAMILYNUM`, `MSIZE`, `MODULENAME`) a vir com conteúdo implausível/não reconhecível, enquanto apenas `DEVINFO_INFO` (campo interno de CRC/versionamento, não configurável por integrador terceiro) pareceu correto. Isso **enfraquece** a hipótese de "a Rexense não preenche campos de conveniência" — EUI-64 não é opcional para um rádio Zigbee funcionar, então não deveria estar ausente num dispositivo em produção.
+
+**Status:** CONFIRMED (leitura reproduzível de bytes reais). UNKNOWN — causa da discrepância entre conteúdo esperado e lido permanece em aberto; hipótese de "campos não populados" enfraquecida mas não descartada.
+
+**Próximo passo:** ler o vetor de interrupções do Cortex-M33 em `0x00000000` (Initial Stack Pointer e Reset Handler) — teste universal, independente de tabelas específicas da Silicon Labs, que serve tanto de diagnóstico adicional (os valores devem parecer um endereço de RAM e um endereço de código Thumb válidos) quanto de primeiro passo real rumo ao mapeamento do firmware atual.

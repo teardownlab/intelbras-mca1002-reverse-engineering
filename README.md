@@ -204,7 +204,7 @@ Ao usar USB-UART futuramente:
 
 ## Próximo passo
 
-Com acesso SWD confirmado, leitura de memória funcional via AHB-AP, e o estado de debug/security confirmado como totalmente aberto ("Standard Debug Unlock"), o próximo objetivo é identificar completamente a variante do EFR32MG21 (part number, revisão, flash size, RAM size) via DEVINFO, como base para um plano de backup completo do firmware original antes de qualquer modificação.
+Tentativas de identificar part number/flash size/RAM size/EUI-64 via campos de conveniência da `DEVINFO` (`FAMILY`, `MSIZE`, `MODULENAME`, `EUI64`) deram resultados implausíveis ou não reconhecíveis (ver [`docs/experiments.md`](docs/experiments.md) para o registro completo e honesto dessa investigação, incluindo testes de reprodutibilidade). Apenas `DEVINFO_INFO` (CRC interno) parece correto. Causa ainda **UNKNOWN**. Próximo passo: ler o vetor de interrupções em `0x00000000` (Initial Stack Pointer / Reset Handler) como teste universal e primeiro passo real de mapeamento do firmware atual.
 
 Nenhuma operação destrutiva (erase, write, unlock, recover) será feita nesta etapa.
 
