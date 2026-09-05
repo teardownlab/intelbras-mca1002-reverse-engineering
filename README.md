@@ -28,13 +28,17 @@ Por padrão, ele **não é exposto ao Home Assistant como adaptador Zigbee USB**
 
 ## Descobertas de hardware
 
-### Wi-Fi: Tuya CB3S
+> **CORREÇÃO (2026-09-05):** uma identificação anterior deste módulo como **Tuya CB3S / Beken BK7231N** estava **ERRADA** e foi removida. A serigrafia do módulo é **RE761-N4P**. Não presumir CB3S/BK7231N em nenhuma decisão futura. Ver [`docs/hardware.md`](docs/hardware.md) para o registro completo da correção.
 
-Foi identificado visualmente um módulo **Tuya CB3S**, baseado no SoC **Beken BK7231N**.
+### Módulo secundário: RE761-N4P (chipset UNKNOWN)
 
-Isso fornece evidência física forte de tecnologia Tuya no lado Wi-Fi do MCA 1002. O BK7231N possui UART e existem firmwares alternativos para ele, incluindo **OpenBeken**.
+Foi identificado visualmente, por serigrafia, o módulo:
 
-Isso **não significa** que instalar OpenBeken automaticamente torne o MCA 1002 compatível com ZHA/Zigbee2MQTT. Ainda precisamos descobrir como o CB3S controla o rádio Zigbee.
+```text
+RE761-N4P
+```
+
+Isso é tudo que está **CONFIRMED** sobre esse módulo neste momento. O chipset/SoC interno, sua função exata (Wi-Fi? bridge? outro?) e sua interface com o REX3B21 permanecem **UNKNOWN** e precisam ser investigados do zero — sem reaproveitar hipóteses da identificação anterior (CB3S/BK7231N), que estava incorreta.
 
 ### Zigbee: Rexense REX3B21S / REX3B21
 
@@ -56,11 +60,11 @@ A família REX3B21 utiliza plataforma **Silicon Labs EFR32**, com indicação de
         Wi-Fi 2,4 GHz
               |
       +-------v--------+
-      | Tuya CB3S      |
-      | BK7231N        |
+      | RE761-N4P      |
+      | chipset UNKNOWN|
       +-------+--------+
               |
-              | UART / outra interface
+              | interface com REX3B21
               | HIPÓTESE — não confirmado
               |
       +-------v--------+
@@ -106,27 +110,27 @@ J3-2 = GND
 
 ## Possibilidades de reaproveitamento
 
-### A. OpenBeken no CB3S
+### A. Firmware alternativo no RE761-N4P
 
-O CB3S/BK7231N possui suporte conhecido pelo OpenBeken.
+> **INVALIDADO/EM REAVALIAÇÃO:** esta opção era descrita anteriormente como "OpenBeken no CB3S", partindo da identificação incorreta do módulo como Tuya CB3S/BK7231N. Essa premissa caiu. Não sabemos ainda se o RE761-N4P é sequer um SoC Wi-Fi, nem se existe algum firmware alternativo compatível com ele. Esta opção fica em aberto até o chipset ser identificado.
 
 ```text
 Home Assistant
       |
-     MQTT
+     MQTT (?)
       |
-    Wi-Fi
+    Wi-Fi (?)
       |
-OpenBeken / CB3S
+RE761-N4P (chipset UNKNOWN)
       |
- comunicação serial (?)
+ comunicação com REX3B21 (?)
       |
   REX3B21
       |
     Zigbee
 ```
 
-Ainda não sabemos o protocolo entre CB3S e REX3B21 nem se o OpenBeken pode controlar esse módulo Zigbee nessa implementação.
+Ainda não sabemos o que é o RE761-N4P, qual protocolo ele usa com o REX3B21, nem se existe algum firmware alternativo aplicável.
 
 ### B. Acesso direto ao EFR32
 
@@ -147,8 +151,8 @@ Pode ser possível gravar firmware diferente diretamente no EFR32 caso sejam ide
 5. Capturar comunicação UART em modo **somente leitura**.
 6. Observar o boot do MCA 1002.
 7. Observar comunicação durante pareamento/uso Zigbee.
-8. Determinar protocolo CB3S ↔ REX3B21.
-9. Só então escolher entre OpenBeken, bridge serial, acesso direto ao REX3B21 ou reflash.
+8. Determinar protocolo RE761-N4P ↔ REX3B21.
+9. Só então escolher entre firmware alternativo no RE761-N4P, bridge serial, acesso direto ao REX3B21 ou reflash.
 
 ## Segurança elétrica
 
@@ -166,39 +170,45 @@ Ao usar USB-UART futuramente:
 
 ### Confirmado
 
-- módulo Wi-Fi **Tuya CB3S / BK7231N**;
-- módulo Zigbee **Rexense REX3B21S / REX3B21**;
-- plataforma Zigbee baseada em **Silicon Labs EFR32**, com indicação de EFR32MG21;
-- vários pads de teste/debug na PCB;
-- J3 possui 6 pads;
-- **J3-2 é GND**, confirmado por continuidade.
+- módulo Zigbee **Rexense REX3B21S**, plataforma **Silicon Labs EFR32MG21**, CPU **ARM Cortex-M33**;
+- módulo secundário identificado visualmente como **RE761-N4P** — chipset/função ainda **UNKNOWN** (substitui a identificação anterior incorreta de Tuya CB3S/BK7231N);
+- vários pads de teste/debug na PCB; J3 possui 6 pads;
+- pinout completo de **J3** (ver [`docs/measurements.md`](docs/measurements.md)):
+  - J3-1 = 3,3 V / VCC / VTref
+  - J3-2 = GND
+  - J3-3 = RESET
+  - J3-4 = SWDIO
+  - J3-5 = SWCLK
+  - J3-6 = UNKNOWN (~1,2 V energizado, sem continuidade com os demais pinos testados)
+- **J3 é o header SWD do REX3B21/EFR32MG21**, confirmado por conexão real via CMSIS-DAP (Raspberry Pi Pico com firmware Debug Probe) + OpenOCD 0.12.0:
+  - SWD DPIDR = `0x6BA02477`
+  - OpenOCD: `Cortex-M33 r0p3 processor detected`, `Examination succeed`
+  - CPUID (leitura via AHB-AP, `mdw 0xE000ED00 1`) = `0x410FD213`, consistente com Cortex-M33
+  - leitura de memória via AHB-AP **funcional** (somente leitura testada até agora)
+  - detalhes completos em [`docs/swd.md`](docs/swd.md)
 
 ### Ainda não confirmado
 
-- interface entre CB3S e REX3B21;
-- se a comunicação é UART;
-- pinout completo de J3;
-- baud rate/protocolo serial;
-- firmware atual do EFR32;
+- identidade/chipset do módulo **RE761-N4P**;
+- interface entre RE761-N4P e REX3B21;
+- se essa interface é UART, e se sim baud rate/protocolo;
+- função de **J3-6**;
+- firmware atual do EFR32 (ainda não lido/analisado);
+- estado de debug/security/read protection do EFR32 (a verificar sem alterar);
+- mapa completo de memória do EFR32MG21 (flash size, RAM size, DEVINFO, NVM3, bootloader, EUI-64, manufacturing tokens, calibration data);
 - compatibilidade do rádio existente com EZSP/NCP;
 - uso direto por ZHA/Zigbee2MQTT;
-- viabilidade prática do OpenBeken para o MCA 1002 completo.
+- viabilidade prática de qualquer firmware alternativo para o RE761-N4P (opção A do plano de reaproveitamento está em reavaliação).
 
 ## Próximo passo
 
-Com **J3-2 identificado como GND**, medir a tensão DC dos demais pads de J3 em relação a J3-2 para procurar **3,3 V** e possíveis linhas UART em idle alto.
+Com acesso SWD confirmado e leitura de memória funcional via AHB-AP, o próximo objetivo é identificar completamente a variante do EFR32MG21 (part number, revisão, flash size, RAM size) e verificar o estado de debug/security **sem alterá-lo**, como base para um plano de backup completo do firmware original antes de qualquer modificação.
 
-Nenhuma gravação será feita nesta etapa.
+Nenhuma operação destrutiva (erase, write, unlock, recover) será feita nesta etapa.
 
-## Referências a validar/adicionar
+## Referências
 
-- Intelbras — MCA 1002;
-- Tuya — CB3S;
-- OpenBeken — BK7231N;
-- Rexense — REX3B21;
-- Silicon Labs — EFR32MG21.
-
-Links e datasheets serão adicionados conforme forem validados durante a investigação.
+Ver [`docs/references.md`](docs/references.md) para a lista completa de datasheets, reference manuals e documentação oficial usada nesta investigação.
 
 ---
 
