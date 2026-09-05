@@ -370,3 +370,29 @@ Isso é o **quarto** campo seguido (depois de `FAMILY`/`FAMILYNUM`, `MSIZE`, `MO
 **Status:** CONFIRMED (leitura reproduzível de bytes reais). UNKNOWN — causa da discrepância entre conteúdo esperado e lido permanece em aberto; hipótese de "campos não populados" enfraquecida mas não descartada.
 
 **Próximo passo:** ler o vetor de interrupções do Cortex-M33 em `0x00000000` (Initial Stack Pointer e Reset Handler) — teste universal, independente de tabelas específicas da Silicon Labs, que serve tanto de diagnóstico adicional (os valores devem parecer um endereço de RAM e um endereço de código Thumb válidos) quanto de primeiro passo real rumo ao mapeamento do firmware atual.
+
+---
+
+## 2026-09-05 — Leitura do vetor de interrupções em 0x00000000 — firmware real confirmado
+
+**Objetivo:** ler o início do vetor de interrupções do Cortex-M33 (flash principal, `0x00000000`) como teste universal, independente da Silicon Labs, e primeiro passo real de mapeamento do firmware.
+
+**Comando:**
+
+```tcl
+mdw 0x00000000 2
+```
+
+Classificação: READ-ONLY / SAFE (mesmo `mdw`, via AP0).
+
+**Resultado:**
+
+```text
+0x00000000: 20001338 00003219
+```
+
+**Interpretação:** word 0 (Initial Stack Pointer) = `0x20001338` — dentro da faixa de RAM (`0x20000000`+), exatamente como esperado. Word 1 (Reset Handler) = `0x00003219` — bit 0 setado (modo Thumb), endereço plausível dentro da flash. **Isso é um vetor de interrupções ARM Cortex-M válido e coerente**, bem diferente da região DEVINFO. Confirma que a leitura via SWD/AHB-AP funciona corretamente em geral, e que **há firmware real e válido gravado na flash principal** — a região DEVINFO parece ter um problema específico dela (causa ainda não identificada), não um problema geral de leitura.
+
+**Status:** CONFIRMED — firmware presente e vetor de interrupções válido. Boa notícia para a prioridade de preservação do firmware original.
+
+**Próximo passo:** ler os primeiros 16 words de `0x00000000` (Stack Pointer + as 15 exceções padrão do Cortex-M: NMI, HardFault, MemManage, BusFault, UsageFault, SVCall, DebugMonitor, PendSV, SysTick) para começar a montar o mapa real do firmware atual.

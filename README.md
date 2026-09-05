@@ -204,7 +204,9 @@ Ao usar USB-UART futuramente:
 
 ## Próximo passo
 
-Tentativas de identificar part number/flash size/RAM size/EUI-64 via campos de conveniência da `DEVINFO` (`FAMILY`, `MSIZE`, `MODULENAME`, `EUI64`) deram resultados implausíveis ou não reconhecíveis (ver [`docs/experiments.md`](docs/experiments.md) para o registro completo e honesto dessa investigação, incluindo testes de reprodutibilidade). Apenas `DEVINFO_INFO` (CRC interno) parece correto. Causa ainda **UNKNOWN**. Próximo passo: ler o vetor de interrupções em `0x00000000` (Initial Stack Pointer / Reset Handler) como teste universal e primeiro passo real de mapeamento do firmware atual.
+Tentativas de identificar part number/flash size/RAM size/EUI-64 via campos de conveniência da `DEVINFO` (`FAMILY`, `MSIZE`, `MODULENAME`, `EUI64`) deram resultados implausíveis ou não reconhecíveis (ver [`docs/experiments.md`](docs/experiments.md) para o registro completo e honesto dessa investigação, incluindo testes de reprodutibilidade). Apenas `DEVINFO_INFO` (CRC interno) parece correto. Causa ainda **UNKNOWN** — parece específico da região DEVINFO.
+
+**Boa notícia:** o vetor de interrupções em `0x00000000` (flash principal) leu de forma **totalmente normal e coerente** (Stack Pointer em RAM, Reset Handler em Thumb válido) — confirma firmware real e válido presente, e que a leitura via SWD funciona corretamente em geral. Próximo passo: mapear os primeiros 16 words do vetor de interrupções (exceções padrão do Cortex-M) para começar a entender o firmware atual.
 
 Nenhuma operação destrutiva (erase, write, unlock, recover) será feita nesta etapa.
 
