@@ -494,3 +494,35 @@ Interpretação destas strings (INFERRED, alta confiança, mas não documentaç�
 **Status:** CONFIRMED — aplicação principal é `APPLICATION_TYPE_ZIGBEE` (via `app.type`, direto do firmware). CONFIRMED — strings de identificação legíveis presentes no firmware, apontando para Rexense como origem. INFERRED (alta confiança) — papel de **Coordinator** Zigbee, versão de firmware 1.7.3, stack ~6.7.1.0. UNKNOWN — significado exato de `MG215` e `1121`.
 
 **Próximo passo:** documentar isso com destaque no README (é a descoberta mais relevante para o objetivo do projeto até agora). Considerar buscar mais strings próximas (versão do EmberZNet, EUI-64 real usado pela aplicação — pode não ser o de `DEVINFO`), e eventualmente montar um mapa de memória: bootloader (`0x0`–`0x4000`), aplicação (`0x4000`–`?`).
+
+---
+
+## 2026-09-05 — Sondagem empírica do tamanho real da flash
+
+**Objetivo:** como a via `DEVINFO_MSIZE` falhou (deu valor fisicamente impossível), tentar determinar o tamanho real da flash empiricamente, testando a última palavra de cada tamanho de flash conhecido do EFR32MG21 (512/768/1024 KB — SKUs reais: `...F512...`, `...F768...`, `...F1024...`).
+
+**Pesquisa prévia:** NVM3 (armazenamento de dados de rede Zigbee, chaves etc.) fica por padrão no **final da flash principal**, com tamanho padrão de **40 KB** em dispositivos Series 2 (`docs.silabs.com`, "Memory Layout", Gecko Platform).
+
+**Comando:**
+
+```tcl
+mdw 0x0007FFFC 1
+mdw 0x000BFFFC 1
+mdw 0x000FFFFC 1
+```
+
+Classificação: READ-ONLY / SAFE (mesmo `mdw`, via AP0). Uma leitura fora da flash real resultaria, na pior hipótese, em erro de barramento reportado pelo OpenOCD — não é uma operação destrutiva.
+
+**Resultado:**
+
+```text
+0x0007fffc: ffffffff   (limite de 512 KB)
+0x000bfffc: 00000000   (limite de 768 KB)
+0x000ffffc: 00000000   (limite de 1024 KB)
+```
+
+**Interpretação:** nenhuma das três leituras resultou em erro de barramento (todas "tiveram sucesso" do ponto de vista do OpenOCD), então isso não é 100% conclusivo por si só. Porém, o padrão é sugestivo: `0xFFFFFFFF` (padrão de flash apagada/não escrita, típico de NOR flash real) no limite de 512 KB, contra `0x00000000` (padrão comum de barramento não mapeado em muitos SoCs ARM) nos limites de 768 KB e 1024 KB. Isso é consistente com **flash real de 512 KB** (SKU tipo `EFR32MG21xxxF512xxx`), com a região de NVM3 (~40 KB, padrão) ocupando o final dessa flash, ainda majoritariamente apagada/vazia (`0xFFFFFFFF`) na posição testada.
+
+**Status:** INFERRED (não CONFIRMED — não é um teste definitivo, pois nenhuma leitura gerou erro explícito). Flash provavelmente de 512 KB. Recomenda-se não tratar como fato até confirmação adicional (ex.: encontrar o cabeçalho real de uma página NVM3 formatada, ou uma leitura que gere erro de barramento claro acima de 512 KB).
+
+**Próximo passo:** procurar o início da região NVM3 (se flash=512KB, região padrão seria aproximadamente os últimos 40 KB, por volta de `0x00076000`–`0x00080000`) e buscar por um cabeçalho de página NVM3 real (formato terá padrão reconhecível), em vez de assumir o tamanho da flash como fato.
