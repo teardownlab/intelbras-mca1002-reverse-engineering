@@ -413,3 +413,84 @@ Classificação: READ-ONLY / SAFE (mesmo `mdw`, via AP0).
 **Interpretação:** mapeando pelos índices padrão do Cortex-M (0=SP, 1=Reset, 2=NMI, 3=HardFault, 4=MemManage, 5=BusFault, 6=UsageFault, 7–9=Reservado, 10=Reservado, 11=SVCall, 12=DebugMonitor, 13=Reservado, 14=PendSV, 15=SysTick): todos os handlers implementados (`Reset`,`NMI`,`HardFault`,`MemManage`,`BusFault`,`UsageFault`,`SVCall`,`DebugMonitor`,`PendSV`,`SysTick`) são endereços ímpares (Thumb) plausíveis dentro de uma flash pequena/modesta; os slots reservados 7, 8 e 9 são `0x00000000` como esperado. Os slots 10 e 13 (reservados) têm valores pequenos não-nulos (`0x40`, `0x74`) — não são ponteiros de código, possivelmente uso específico do GSDK/bootloader da Silicon Labs (ex.: informação de aplicação/checksum); não é motivo de preocupação, é padrão comum em imagens Gecko SDK.
 
 **Status:** CONFIRMED — vetor de interrupções completo e coerente, mais uma confirmação de firmware real e válido.
+
+---
+
+## 2026-09-05 — ApplicationProperties_t: bootloader identificado, e localização da aplicação Zigbee real
+
+**Objetivo:** usar a convenção oficial da Silicon Labs (Simplicity Commander grava um ponteiro para uma struct `ApplicationProperties_t` na palavra 13 do vetor de interrupções) para identificar definitivamente o tipo de firmware presente, evitando a ambiguidade da DEVINFO.
+
+**Pesquisa prévia:** código-fonte oficial obtido via `gh api` do repositório `SiliconLabs/simplicity_sdk` (`platform/bootloader/api/application_properties.h`), não apenas resumos de busca. Magic de 16 bytes confirmado: `13 b7 79 fa c9 25 dd b7 ad f3 cf e0 f1 b6 14 b8`. Bits de `app.type`: `APPLICATION_TYPE_ZIGBEE`=bit0 (`0x01`), `APPLICATION_TYPE_BOOTLOADER`=bit6 (`0x40`). Layout do struct (80 bytes/20 words): magic(16)+structVersion(4)+signatureType(4)+signatureLocation(4)+app.type(4)+app.version(4)+app.capabilities(4)+app.productId(16)+cert*(4)+longTokenSectionAddress*(4)+decryptKey(16).
+
+**Comando 1** (struct apontada por word 13 do vetor em `0x00000000`, endereço `0x00000074`):
+
+```tcl
+mdw 0x00000074 20
+```
+
+**Resultado 1:**
+
+```text
+0x00000074: fa79b713 b7dd25c9 e0cff3ad b814b6f1 00000101 00000000 000032b4 00000040
+0x00000094: 01080000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+0x000000b4: 33524645 00000032 00000001 00000002
+```
+
+**Interpretação 1:** magic bate **exatamente** (4 primeiros words idênticos ao esperado) — struct real confirmada. `structVersion`=1.1. `signatureType`=0 (não assinado). `signatureLocation`=`0x32b4` (~12,7 KB — dentro da região reservada). **`app.type`=`0x00000040`=bit6=`APPLICATION_TYPE_BOOTLOADER`** — este é o **Gecko Bootloader**, não a aplicação Zigbee. `app.version`=`0x01080000`→ decodifica como versão "1.8.0.0" do bootloader. Byte final ("decryptKey", reaproveitado) contém ASCII `"EFR32"` seguido de inteiros pequenos — mais uma confirmação independente da plataforma, direto do firmware.
+
+**Status:** CONFIRMED — região `0x00000000`–`~0x4000` é o **Gecko Bootloader** (Silicon Labs), versão 1.8.
+
+**Comando 2** (pesquisa oficial: no EFR32xG21, o bootloader reserva 16 KB e a aplicação começa em `0x00004000` — confirmado via `docs.silabs.com`, seção "Memory Space For Bootloading"):
+
+```tcl
+mdw 0x00004000 16
+```
+
+**Resultado 2:**
+
+```text
+0x00004000: 200070b0 0003267d 0000da29 000324c5 010a0aa7 00004200 ac0f1804 01a767a0
+0x00004020: 00000000 00000000 00000000 00000000 00000000 00032c6c 00000000 00000000
+```
+
+**Interpretação 2:** Stack Pointer (`0x200070b0`) e Reset Handler (`0x0003267d`) plausíveis para uma aplicação bem maior que o bootloader. Word 13 (offset `0x34`, endereço `0x00004034`) = `0x00032c6c` — ponteiro para a `ApplicationProperties_t` da aplicação principal. Alguns handlers de exceção (`MemManage`, `UsageFault`, e o vetor em `0x401c`) vieram com valores grandes não-óbvios como ponteiro de código Thumb — não investigado a fundo (baixa prioridade frente ao resultado principal).
+
+**Comando 3** (struct da aplicação principal, com leitura estendida para capturar strings adjacentes):
+
+```tcl
+mdw 0x00032c6c 32
+```
+
+**Resultado 3:**
+
+```text
+0x00032c6c: fa79b713 b7dd25c9 e0cff3ad b814b6f1 00000101 00000000 ffffffff 00000001
+0x00032c8c: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+0x00032cac: 2e6d6f63 00000063 45584552 5f45534e 435f4148 535f4f4f 37366b74 4d5f3031
+0x00032ccc: 35313247 372e315f 0000332e 5f584552 004f4f43 45584552 0045534e 31323131
+```
+
+**Interpretação 3:** magic bate exatamente de novo. `structVersion`=1.1, `signatureType`=0 (não assinado), `signatureLocation`=`0xFFFFFFFF` (não definido — consistente com "sem assinatura"). **`app.type`=`0x00000001`=bit0=`APPLICATION_TYPE_ZIGBEE`** ✅ — **esta é a aplicação Zigbee real**, confirmada pelo próprio firmware, não por inferência.
+
+Decodificando os bytes finais (região "decryptKey" reaproveitada + dados adjacentes) como ASCII, aparecem strings legíveis separadas por bytes nulos:
+
+```text
+REXENSE_HA_COO_Stk6710_MG215_1.7.3
+REX_COO
+REXENSE
+1121
+```
+
+Interpretação destas strings (INFERRED, alta confiança, mas não documentação oficial — são identificadores internos da Rexense, não têm especificação pública):
+- `REXENSE` — fabricante do módulo, confirma a marcação física.
+- `HA` — provavelmente "Home Automation".
+- **`COO`** — muito provavelmente **"Coordinator"** (papel Zigbee). Se correto, **este firmware específico roda como Coordenador Zigbee**, não apenas NCP/Router genérico — diretamente relevante para o objetivo do projeto.
+- `Stk6710` — provável referência à versão da stack EmberZNet/GSDK usada no build (formato sugestivo de "6.7.1.0" ou similar).
+- `MG215` — referência à plataforma (EFR32MG21 + sufixo/variante "5", não totalmente esclarecido).
+- `1.7.3` — versão do firmware da aplicação.
+- `REX_COO` — forma curta do identificador (Rexense Coordinator).
+- `1121` — não esclarecido (pode ser build/data code, ex.: nov/2021).
+
+**Status:** CONFIRMED — aplicação principal é `APPLICATION_TYPE_ZIGBEE` (via `app.type`, direto do firmware). CONFIRMED — strings de identificação legíveis presentes no firmware, apontando para Rexense como origem. INFERRED (alta confiança) — papel de **Coordinator** Zigbee, versão de firmware 1.7.3, stack ~6.7.1.0. UNKNOWN — significado exato de `MG215` e `1121`.
+
+**Próximo passo:** documentar isso com destaque no README (é a descoberta mais relevante para o objetivo do projeto até agora). Considerar buscar mais strings próximas (versão do EmberZNet, EUI-64 real usado pela aplicação — pode não ser o de `DEVINFO`), e eventualmente montar um mapa de memória: bootloader (`0x0`–`0x4000`), aplicação (`0x4000`–`?`).

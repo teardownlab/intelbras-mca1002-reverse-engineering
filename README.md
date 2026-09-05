@@ -202,11 +202,31 @@ Ao usar USB-UART futuramente:
 - uso direto por ZHA/Zigbee2MQTT;
 - viabilidade prática de qualquer firmware alternativo para o RE761-N4P (opção A do plano de reaproveitamento está em reavaliação).
 
+## Descoberta principal: firmware identificado
+
+Usando a convenção oficial da Silicon Labs (struct `ApplicationProperties_t`, localizada via ponteiro gravado na palavra 13 do vetor de interrupções — código-fonte oficial conferido em `SiliconLabs/simplicity_sdk`), mapeamos a flash principal do EFR32MG21:
+
+```text
+0x00000000 - ~0x00004000   Gecko Bootloader (Silicon Labs), versão 1.8
+0x00004000 - ?             Aplicação Zigbee (APPLICATION_TYPE_ZIGBEE confirmado no firmware)
+```
+
+A aplicação principal contém strings de identificação legíveis, lidas diretamente do firmware:
+
+```text
+REXENSE_HA_COO_Stk6710_MG215_1.7.3
+REX_COO
+REXENSE
+1121
+```
+
+**`COO` muito provavelmente significa "Coordinator"** — ou seja, há indício forte (ainda não 100% confirmado) de que **este firmware específico já roda como Coordenador Zigbee**, não apenas como NCP/Router genérico. Isso é diretamente relevante para o objetivo do projeto (usar o MCA 1002 como coordenador Zigbee local). Versão do firmware: `1.7.3`. Detalhes completos, incluindo o registro byte a byte, em [`docs/experiments.md`](docs/experiments.md).
+
 ## Próximo passo
 
-Tentativas de identificar part number/flash size/RAM size/EUI-64 via campos de conveniência da `DEVINFO` (`FAMILY`, `MSIZE`, `MODULENAME`, `EUI64`) deram resultados implausíveis ou não reconhecíveis (ver [`docs/experiments.md`](docs/experiments.md) para o registro completo e honesto dessa investigação, incluindo testes de reprodutibilidade). Apenas `DEVINFO_INFO` (CRC interno) parece correto. Causa ainda **UNKNOWN** — parece específico da região DEVINFO.
+Tentativas de identificar part number/flash size/RAM size/EUI-64 via campos de conveniência da `DEVINFO` (`FAMILY`, `MSIZE`, `MODULENAME`, `EUI64`) deram resultados implausíveis ou não reconhecíveis (ver [`docs/experiments.md`](docs/experiments.md) para o registro completo e honesto dessa investigação, incluindo testes de reprodutibilidade). Isso deixou de ser bloqueante: identificamos o firmware por uma via completamente diferente (acima), mais confiável.
 
-**Boa notícia:** o vetor de interrupções em `0x00000000` (flash principal) leu de forma **totalmente normal e coerente** (Stack Pointer em RAM, Reset Handler em Thumb válido) — confirma firmware real e válido presente, e que a leitura via SWD funciona corretamente em geral. Próximo passo: mapear os primeiros 16 words do vetor de interrupções (exceções padrão do Cortex-M) para começar a entender o firmware atual.
+Próximos passos sugeridos: confirmar a interpretação de "COO" como Coordinator (pesquisar mais strings/dados na aplicação), determinar o fim real da região de aplicação (para saber o tamanho de flash utilizado, já que a via DEVINFO falhou), e avançar para NVM3 (rede/chaves Zigbee) e plano de backup.
 
 Nenhuma operação destrutiva (erase, write, unlock, recover) será feita nesta etapa.
 

@@ -36,6 +36,13 @@ O core identificado neste projeto é **r0p3** (via `Examination succeed` do Open
 
 Versão em uso neste projeto: xPack OpenOCD `0.12.0+dev-02228-ge5888bda3-dirty` (build 2025-10-04).
 
+## Gecko Bootloader / Application Properties
+
+- [Gecko Bootloader — Memory Space For Bootloading (EFR32xG21: bootloader 16KB, aplicação a partir de `0x00004000`)](https://docs.silabs.com/connect-stack/latest/bootloader-fundamentals/03-memory-space-for-bootloading)
+- [`ApplicationProperties_t` struct reference (docs.silabs.com)](https://docs.silabs.com/mcu-bootloader/latest/gecko-bootloader-api/application-properties-t)
+- [`ApplicationData_t` struct reference — inclui `APPLICATION_TYPE_ZIGBEE`](https://docs.silabs.com/mcu-bootloader/latest/gecko-bootloader-api/application-data-t)
+- Código-fonte oficial (não apenas resumo): [`application_properties.h` em `SiliconLabs/simplicity_sdk`](https://github.com/SiliconLabs/simplicity_sdk/blob/main/platform/bootloader/api/application_properties.h) — magic de 16 bytes e todos os bits de `APPLICATION_TYPE_*` conferidos diretamente nesta fonte via `gh api`, não apenas em resumo de busca.
+
 ## Rexense — REX3B21 / REX3B21S
 
 - [REXENSE REX3B21 Low-Power Zigbee Module — User Manual](https://manuals.plus/rexense/rex3b21-low-power-zigbee-module-manual)
