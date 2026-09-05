@@ -334,6 +334,14 @@ Decodificação do payload "Debug port lock status" (per SE Command List oficial
 
 **Status:** CONFIRMED — debug port unlocked, secure debug disabled, device erase enabled (mas não executado, nem será).
 
+## Plano de backup completo (2026-09-05)
+
+Com o mapa de memória minimamente estabelecido (bootloader `0x0`–`0x4000`, aplicação Zigbee a partir de `0x4000`, flash provavelmente de 512 KB — ver [`experiments.md`](experiments.md)), executamos o backup completo pedido desde o início do projeto:
+
+- **Comando:** `dump_image <arquivo> 0x00000000 0x80000` — leitura em bloco de 512 KB via AHB-AP (AP0). Classificação: **READ-ONLY / SAFE** — é o inverso de `load_image` (que grava no dispositivo e continua proibido); `dump_image` apenas lê e salva localmente, sem tocar no dispositivo.
+- **Destino:** `C:\Users\guilh\mca1002-backups\` — **fora do Git e fora do OneDrive**, apenas local, porque a região pode conter chaves de rede Zigbee reais (NVM3) se o dispositivo já tiver sido provisionado em alguma rede.
+- **O que é publicado no repositório:** apenas metadados (SHA-256, tamanho, data, faixa de endereços) — nunca o conteúdo bruto do dump. Ver registro em [`experiments.md`](experiments.md).
+
 ## Próximos passos (somente READ-ONLY / SAFE)
 
 1. ~~Identificar a variante exata do EFR32MG21 e ler DEVINFO~~ — feito parcialmente (ver [`experiments.md`](experiments.md), entrada de leitura de `DEVINFO_PART`/`MEMINFO`/`MSIZE`): endereço base `0x0FE0E000` confirmado no Reference Manual oficial, mas `FAMILY`/`FAMILYNUM`/`MSIZE` deram valores fisicamente implausíveis (SRAM=513KB impossível para este chip). **Não confiar nesses números ainda.** Próxima tentativa: ler `DEVINFO_MODULENAME0..6` (`0x130`-`0x148`, ASCII, 4 chars/word) para identificação direta por texto.
