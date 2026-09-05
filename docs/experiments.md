@@ -312,3 +312,29 @@ mdw 0x0FE0E130 7
 **Status:** CONFIRMED (leituras são estáveis/reprodutíveis). UNKNOWN (por que o conteúdo não corresponde à especificação genérica da Silicon Labs para essas posições — hipóteses em aberto: endianness/mapeamento de página específico deste die, diferença de revisão do EFR32MG21 usada neste módulo Rexense vs. a documentada no RM Rev 1.0, ou possibilidade de os campos `DEVINFO_MODULENAME` simplesmente não serem usados por este fabricante de módulo).
 
 **Próximo passo:** ler `DEVINFO_INFO` (offset `0x000`, "DI Page Version", campo `DEVINFOREV`) como teste de sanidade adicional — é um campo simples, documentado como "initially 1", que serve de referência de baixo risco para saber se o problema está na região de `0x004` em diante ou se afeta a página inteira desde o primeiro word.
+
+---
+
+## 2026-09-05 — Leitura de DEVINFO_INFO (offset 0x000) — reavaliação da hipótese
+
+**Objetivo:** ler `DEVINFO_INFO` como teste de sanidade adicional para a página DEVINFO.
+
+**Comando:**
+
+```tcl
+mdw 0x0FE0E000 1
+```
+
+**Resultado:**
+
+```text
+0x0fe0e000: 40028010
+```
+
+**Interpretação:** decodificado por bits confirmados no RM oficial (seção 6.4.2.1, extração "raw" sem ambiguidade): `DEVINFOREV`[31:24]=`0x40`(64), `PRODREV`[23:16]=`0x02`(2), `CRC`[15:0]=`0x8010`. `PRODREV`=2 é um valor pequeno e plausível; `CRC`=`0x8010` tem exatamente a cara de um CRC-16 real (deve parecer "aleatório" por natureza — isso bate). `DEVINFOREV`=64 é alto frente à narrativa do manual ("initially 1"), mas essa frase descreve a origem histórica do esquema de versionamento da página, não necessariamente o valor esperado hoje — não é uma contradição física como o `SRAM`=513KB encontrado antes.
+
+**Reavaliação:** este resultado sugere que a leitura de DEVINFO **está funcionando corretamente em geral** (o CRC parece genuíno). A explicação mais provável para as estranhezas anteriores (`FAMILY`/`FAMILYNUM`=0 em `PART`, `MSIZE` fisicamente implausível, `MODULENAME` não-ASCII) passa a ser: **esses são campos de conveniência da Silicon Labs (OPN/família/nome de módulo) que a Rexense, como integradora terceira, pode não preencher** — em vez de um problema de endereço base ou de mecanismo de leitura via SWD. Isso não está provado, mas é agora a hipótese mais provável.
+
+**Status:** CONFIRMED — leitura de DEVINFO funcional e reproduzível em geral. INFERRED — campos de conveniência (FAMILY/FAMILYNUM/MSIZE/MODULENAME) provavelmente não populados por este fabricante de módulo, em vez de indicar erro de leitura. UNKNOWN — confirmação definitiva dessa hipótese; flash size e RAM size reais deste chip continuam não confirmados por nenhuma via até agora.
+
+**Próximo passo:** ponto de decisão apresentado ao responsável do projeto — continuar insistindo nos campos numéricos da DEVINFO (ex.: `DEVINFO_PKGINFO`, `DEVINFO_EUI64`) ou mudar de prioridade (ex.: mapear o início da flash principal em `0x00000000`, ou buscar `EUI-64`/calibração via outros campos, ou seguir para NVM3/bootloader).
