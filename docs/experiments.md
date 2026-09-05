@@ -140,3 +140,34 @@ Classificação: READ-ONLY / SAFE. `mdw` lê uma palavra de 32 bits via o AP con
 **Status:** CONFIRMED.
 
 **Próximo passo:** pesquisar documentação oficial Silicon Labs para o EFR32MG21 (Series 2) e determinar o endereço correto de DEVINFO para essa série (não extrapolar de Series 1), como próximo passo para identificar part number exato, flash size e RAM size — antes de qualquer leitura, verificar também se há indicação de debug/security lock.
+
+---
+
+## 2026-09-05 — Enumeração de Access Ports: leitura do IDR do AP0
+
+**Objetivo:** enumerar/confirmar os Access Ports do DAP, começando pelo AP0 já usado para leitura de CPUID, usando um comando documentado oficialmente como somente leitura.
+
+**Conexão:** mesma de sempre (Pico -> J3-5/J3-4/J3-2, RESET não conectado). Desta vez o OpenOCD foi executado em modo batch (não interativo): `openocd -f interface/cmsis-dap.cfg -c "transport select swd" -c "adapter speed 1000" -c "swd newdap efr32 cpu -expected-id 0x6ba02477" -c "dap create efr32.dap -chain-position efr32.cpu" -c "target create efr32.cpu cortex_m -dap efr32.dap -ap-num 0" -c "init" -c "efr32.dap apid 0" -c "shutdown"`.
+
+**Comando:**
+
+```tcl
+efr32.dap apid 0
+```
+
+Classificação: READ-ONLY / SAFE. Confirmado contra a documentação oficial do OpenOCD (`doc/openocd.texi`): `apid` apenas exibe o IDR do AP indicado; não existe variante de escrita para este comando.
+
+**Resultado:**
+
+```text
+Info : SWD DPIDR 0x6ba02477
+Info : [efr32.cpu] Cortex-M33 r0p3 processor detected
+Info : [efr32.cpu] Examination succeed
+0x84770001
+```
+
+**Interpretação:** IDR decodificado como Revision=`0x8`, JEP106 continuation=`0x4`, JEP106 identity=`0x3B` (ARM Limited), Class=`0x8` (MEM-AP), Variant=`0x0`, Type=`0x1` (AHB-AP). Confirma que AP0 é um MEM-AP AHB-AP válido da ARM — consistente com as leituras de CPUID já feitas via esse mesmo AP.
+
+**Status:** CONFIRMED.
+
+**Próximo passo:** verificar se existem outros Access Ports além do AP0 (tentar `apid` em outros números), e/ou avançar para verificar o estado de debug/security lock sem alterá-lo, e para identificação de DEVINFO após confirmar o endereço correto no Reference Manual oficial.

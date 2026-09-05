@@ -185,6 +185,7 @@ Ao usar USB-UART futuramente:
   - OpenOCD: `Cortex-M33 r0p3 processor detected`, `Examination succeed`
   - CPUID (leitura via AHB-AP, `mdw 0xE000ED00 1`) = `0x410FD213`, consistente com Cortex-M33
   - leitura de memória via AHB-AP **funcional** (somente leitura testada até agora)
+  - AP0 IDR = `0x84770001` → MEM-AP tipo AHB-AP, JEP106 = ARM Limited (`efr32.dap apid 0`)
   - detalhes completos em [`docs/swd.md`](docs/swd.md)
 
 ### Ainda não confirmado

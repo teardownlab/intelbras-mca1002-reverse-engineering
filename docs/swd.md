@@ -111,6 +111,39 @@ Isso confirma de forma independente, a partir de um registrador padrão ARM (nã
 
 Status: **CONFIRMED — funcional**. A leitura acima via `mdw` confirma que o AHB-AP (Access Port número 0, conforme `-ap-num 0` na configuração do target) permite leitura de memória mapeada do sistema. Isso é uma evidência inicial (não uma confirmação completa) de que debug/memory access protection não está bloqueando leituras no espaço testado (PPB/system space). Ainda não testado: leitura da região de flash principal, SRAM, nem verificação formal do registro de segurança/debug lock do EFR32 Series 2 (ver "Próximos passos").
 
+### Enumeração de Access Ports — AP0 IDR
+
+Comando:
+
+```tcl
+efr32.dap apid 0
+```
+
+Classificação: **READ-ONLY / SAFE**. Conforme a documentação oficial do OpenOCD (`doc/openocd.texi`, comando `$dap_name apid`), `apid` "Displays ID register from AP num" — não existe variante de escrita para este comando (ao contrário de `apreg`, que só escreve se um `value` for explicitamente passado). É uma leitura pura do IDR (Identification Register) do Access Port, um registrador de identificação da infraestrutura CoreSight/ADIv5, fora do espaço de memória de aplicação do dispositivo.
+
+Resultado:
+
+```text
+0x84770001
+```
+
+Decodificação (formato padrão ARM ADIv5 para AP IDR):
+
+| Campo | Bits | Valor | Significado |
+|---|---|---|---|
+| Revision | [31:28] | `0x8` | específico da implementação |
+| JEP106 continuation | [27:24] | `0x4` | banco 4 |
+| JEP106 identity | [23:17] | `0x3B` | ARM Limited |
+| Class | [16:13] | `0x8` | MEM-AP |
+| Variant | [7:4] | `0x0` | — |
+| Type | [3:0] | `0x1` | AHB-AP |
+
+**Interpretação:** AP0 é um MEM-AP do tipo AHB-AP, JEP106 = ARM Limited. Confirma formalmente que o AP0 (já usado com sucesso para ler o CPUID) é um Access Port válido do tipo correto para acessar o barramento de sistema do EFR32MG21. Não revela, por si só, o estado de debug/security lock — isso está em registrador(es) separado(s) ainda não lido(s).
+
+**Status:** CONFIRMED — AP0 = MEM-AP (AHB-AP), ARM.
+
+**Ambiente de execução:** OpenOCD rodado em modo batch (não interativo), mesma sequência de bring-up já validada (`swd newdap` / `dap create` / `target create`, sem `reset`), seguido de `init` e do comando acima, encerrando com `shutdown`. Nenhum reset, erase, write ou unlock foi executado.
+
 ## Resumo de status
 
 | Item | Status |
@@ -120,6 +153,7 @@ Status: **CONFIRMED — funcional**. A leitura acima via `mdw` confirma que o AH
 | Core reconhecido pelo OpenOCD | CONFIRMED = Cortex-M33 r0p3 |
 | CPUID via AHB-AP | CONFIRMED = `0x410FD213` |
 | Leitura de memória via AHB-AP (PPB) | CONFIRMED — funcional |
+| AP0 IDR (enumeração de Access Ports) | CONFIRMED — `0x84770001` = MEM-AP (AHB-AP), ARM |
 | Estado de debug/security lock (DCI/AP lock do EFR32 Series 2) | UNKNOWN — ainda não verificado |
 | Part number exato / flash size / RAM size do EFR32MG21 | UNKNOWN — ainda não lido de DEVINFO |
 | Leitura de flash principal | Não tentada |
