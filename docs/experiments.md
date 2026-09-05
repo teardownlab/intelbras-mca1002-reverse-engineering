@@ -526,3 +526,30 @@ Classificação: READ-ONLY / SAFE (mesmo `mdw`, via AP0). Uma leitura fora da fl
 **Status:** INFERRED (não CONFIRMED — não é um teste definitivo, pois nenhuma leitura gerou erro explícito). Flash provavelmente de 512 KB. Recomenda-se não tratar como fato até confirmação adicional (ex.: encontrar o cabeçalho real de uma página NVM3 formatada, ou uma leitura que gere erro de barramento claro acima de 512 KB).
 
 **Próximo passo:** procurar o início da região NVM3 (se flash=512KB, região padrão seria aproximadamente os últimos 40 KB, por volta de `0x00076000`–`0x00080000`) e buscar por um cabeçalho de página NVM3 real (formato terá padrão reconhecível), em vez de assumir o tamanho da flash como fato.
+
+---
+
+## 2026-09-05 — Sondagem da região NVM3 (inconclusiva)
+
+**Objetivo:** verificar se há dados NVM3 (rede/chaves Zigbee) na região candidata (últimos ~40 KB de uma flash de 512 KB, `0x00076000`+).
+
+**Pesquisa prévia:** formato de página do NVM3 obtido do código-fonte oficial (`SiliconLabs/simplicity_sdk`, `platform/emdrv/nvm3/inc/nvm3_page.h`) — cabeçalho de 5 words com bitfields (contador de erase, etc.), não um "magic" simples de comparar por igualdade direta. Dada a complexidade, optou-se por uma checagem visual rápida antes de investir em parsing completo.
+
+**Comando:**
+
+```tcl
+mdw 0x00076000 16
+```
+
+**Resultado:**
+
+```text
+0x00076000: ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff
+0x00076020: ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff
+```
+
+**Interpretação:** região completamente apagada (`0xFFFFFFFF`) neste ponto específico. **Não é conclusivo** — o NVM3 usa wear-leveling entre múltiplas páginas de flash, então é normal que páginas individuais estejam vazias mesmo com o NVM3 em uso ativo em outras páginas. Pode significar: (a) o offset exato do NVM3 não é bem esse (depende do tamanho real da flash, que ainda é INFERRED, não CONFIRMED), (b) esta página específica está genuinamente livre/não utilizada, ou (c) o NVM3 desta aplicação usa uma região menor/diferente da suposta.
+
+**Status:** INCONCLUSIVO. Não confirma nem descarta a localização do NVM3.
+
+**Próximo passo (sessão futura):** escanear uma faixa maior perto do topo da flash em busca de dados não-apagados (indicando página NVM3 realmente em uso), ou implementar o parsing completo do cabeçalho de 5 words do NVM3 antes de tentar interpretar qualquer conteúdo como dados de rede Zigbee.
