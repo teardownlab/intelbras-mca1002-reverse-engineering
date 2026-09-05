@@ -171,3 +171,31 @@ Info : [efr32.cpu] Examination succeed
 **Status:** CONFIRMED.
 
 **Próximo passo:** verificar se existem outros Access Ports além do AP0 (tentar `apid` em outros números), e/ou avançar para verificar o estado de debug/security lock sem alterá-lo, e para identificação de DEVINFO após confirmar o endereço correto no Reference Manual oficial.
+
+---
+
+## 2026-09-05 — Enumeração de AP1: identificado como DCI/AAP (Silicon Labs) — ⚠️ achado de segurança
+
+**Objetivo:** continuar a enumeração de Access Ports, testando AP1.
+
+**Conexão:** mesma configuração de sempre (Pico -> J3-5/J3-4/J3-2, RESET não conectado), OpenOCD em modo batch, mesmo bring-up de sempre.
+
+**Comando:**
+
+```tcl
+efr32.dap apid 1
+```
+
+Classificação: READ-ONLY / SAFE (comando `apid`, sem variante de escrita).
+
+**Resultado:**
+
+```text
+0x54770002
+```
+
+**Interpretação:** decodificado como Class=MEM-AP, Type=APB-AP, ARM. Pesquisa contra o AN1190 oficial da Silicon Labs ("Series 2 Secure Debug") indica que esse segundo AP corresponde à **Debug Challenge Interface (DCI)**, também chamada de Authentication Access Port (AAP) em fontes de comunidade — o mecanismo oficial de debug lock/unlock **e mass erase** (`Erase Device`: "Performs a device mass erase and resets the debug configuration to its initial unlocked state."). Isso confirma fisicamente, no barramento SWD deste dispositivo, o mecanismo sobre o qual já havíamos sido alertados como potencialmente destrutivo.
+
+**Status:** CONFIRMED (AP1 existe, é APB-AP ARM). INFERRED, alta confiança, pendente de AN1303 (corresponde à DCI/AAP). UNKNOWN (protocolo exato de registradores).
+
+**Próximo passo:** ler o AN1303 (Silicon Labs, oficial) — "Programming Series 2 Devices using the Debug Challenge Interface (DCI) and Serial Wire Debug (SWD)" — para entender o protocolo de registradores da DCI antes de qualquer outro comando em AP1. Nenhum `apreg`/`dpreg`/`mdw` em AP1 até essa pesquisa estar completa.

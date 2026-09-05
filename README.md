@@ -186,6 +186,7 @@ Ao usar USB-UART futuramente:
   - CPUID (leitura via AHB-AP, `mdw 0xE000ED00 1`) = `0x410FD213`, consistente com Cortex-M33
   - leitura de memória via AHB-AP **funcional** (somente leitura testada até agora)
   - AP0 IDR = `0x84770001` → MEM-AP tipo AHB-AP, JEP106 = ARM Limited (`efr32.dap apid 0`)
+  - AP1 IDR = `0x54770002` → MEM-AP tipo APB-AP; pesquisa contra o AN1190 oficial da Silicon Labs indica ser a **DCI (Debug Challenge Interface) / AAP** — o mecanismo de debug lock/unlock e **mass erase** dos Series 2. ⚠️ **Nenhuma operação além de `apid` foi ou será feita neste AP sem antes ler o AN1303 (protocolo de registradores da DCI).**
   - detalhes completos em [`docs/swd.md`](docs/swd.md)
 
 ### Ainda não confirmado

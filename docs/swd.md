@@ -142,6 +142,49 @@ Decodificação (formato padrão ARM ADIv5 para AP IDR):
 
 **Status:** CONFIRMED — AP0 = MEM-AP (AHB-AP), ARM.
 
+### AP1 — identificado como DCI / Authentication Access Port (AAP) — ⚠️ CUIDADO
+
+Comando:
+
+```tcl
+efr32.dap apid 1
+```
+
+Classificação: **READ-ONLY / SAFE** (mesmo comando `apid`, sem variante de escrita).
+
+Resultado:
+
+```text
+0x54770002
+```
+
+Decodificação:
+
+| Campo | Bits | Valor | Significado |
+|---|---|---|---|
+| Revision | [31:28] | `0x5` | específico da implementação |
+| JEP106 continuation | [27:24] | `0x4` | banco 4 |
+| JEP106 identity | [23:17] | `0x3B` | ARM Limited |
+| Class | [16:13] | `0x8` | MEM-AP |
+| Variant | [7:4] | `0x0` | — |
+| Type | [3:0] | `0x2` | APB-AP |
+
+**Interpretação e ALERTA:** pesquisa contra a documentação oficial Silicon Labs (**AN1190: Series 2 Secure Debug**, PDF oficial de `silabs.com`) indica que, nos EFR32 Series 2, a funcionalidade de debug lock/unlock e mass erase é implementada por um segundo Access Port chamado **Debug Challenge Interface (DCI)**, também referida como **Authentication Access Port (AAP)** em fontes de comunidade, exposto como um APB-AP separado do AHB-AP principal. O padrão observado (AHB-AP com IDR `0x84770001` + um segundo APB-AP) é consistente com relatos de terceiros para o EFR32MG21 especificamente.
+
+Trecho literal do AN1190 (seção 3.2.2, Debug Challenge Interface):
+
+> "The Debug Challenge Interface (DCI) is made available through commands in Simplicity Studio and Simplicity Commander. [...] For more information about DCI, see AN1303: Programming Series 2 Devices using the Debug Challenge Interface (DCI) and Serial Wire Debug (SWD)."
+
+E, sobre o comando `Erase Device` disponível via DCI (seção 5.2 / Tabela "Debug Unlock Command Reference"):
+
+> "Performs a device mass erase and resets the debug configuration to its initial unlocked state."
+
+**Isso é exatamente o mecanismo de "recover"/mass erase mencionado nas regras de segurança deste projeto.** O AN1190 também documenta um comando `Read Lock Status` ("Returns the current debug lock status and configuration", disponibilidade "Always") que seria a forma correta de checar o estado de debug/security lock sem alterá-lo — mas o **protocolo exato de registradores da DCI (quais offsets de `apreg` correspondem a quê) ainda não foi lido** (está em AN1303, ainda não consultado neste projeto).
+
+**REGRA ADOTADA:** nenhuma operação além de `apid` (leitura do IDR) será feita em AP1 até o protocolo da DCI (AN1303) ser lido e compreendido. Nenhum `apreg`/`dpreg`/`mdw` direcionado a AP1 deve ser executado sem essa pesquisa prévia.
+
+**Status:** CONFIRMED — AP1 existe, é um APB-AP ARM. INFERRED (alta confiança, pendente de confirmação em AN1303) — corresponde à DCI/AAP usada para debug lock/unlock/mass erase. UNKNOWN — protocolo exato de registradores.
+
 **Ambiente de execução:** OpenOCD rodado em modo batch (não interativo), mesma sequência de bring-up já validada (`swd newdap` / `dap create` / `target create`, sem `reset`), seguido de `init` e do comando acima, encerrando com `shutdown`. Nenhum reset, erase, write ou unlock foi executado.
 
 ## Resumo de status
@@ -154,6 +197,7 @@ Decodificação (formato padrão ARM ADIv5 para AP IDR):
 | CPUID via AHB-AP | CONFIRMED = `0x410FD213` |
 | Leitura de memória via AHB-AP (PPB) | CONFIRMED — funcional |
 | AP0 IDR (enumeração de Access Ports) | CONFIRMED — `0x84770001` = MEM-AP (AHB-AP), ARM |
+| AP1 IDR | CONFIRMED — `0x54770002` = MEM-AP (APB-AP), ARM. INFERRED = DCI/AAP (Silicon Labs), usada para debug lock/unlock/mass erase. **Não tocar além de `apid` sem ler AN1303 antes.** |
 | Estado de debug/security lock (DCI/AP lock do EFR32 Series 2) | UNKNOWN — ainda não verificado |
 | Part number exato / flash size / RAM size do EFR32MG21 | UNKNOWN — ainda não lido de DEVINFO |
 | Leitura de flash principal | Não tentada |
@@ -162,8 +206,9 @@ Decodificação (formato padrão ARM ADIv5 para AP IDR):
 ## Próximos passos (somente READ-ONLY / SAFE)
 
 1. Identificar a variante exata do EFR32MG21 e ler DEVINFO (part number, revisão, flash size, RAM size) — pesquisar antes o endereço correto para EFR32 **Series 2** na documentação oficial Silicon Labs (não extrapolar endereços de Series 1).
-2. Enumerar os Access Ports disponíveis no DAP.
-3. Verificar o estado de debug/security/protection **sem alterá-lo**.
-4. Somente depois, planejar leitura de flash/SRAM/NVM3 para backup.
+2. ~~Enumerar os Access Ports disponíveis no DAP.~~ Feito para AP0 e AP1 (ver acima). Pode haver mais (AP2, AP3...) — verificar depois, com a mesma cautela dada a AP1.
+3. **Ler o AN1303 (Silicon Labs, oficial) antes de qualquer outro comando em AP1.** AN1303 descreve o protocolo de registradores da DCI necessário para usar com segurança o comando `Read Lock Status` (que, segundo o AN1190, é somente leitura e sempre disponível) sem risco de acionar `Erase Device` ou outro comando por engano.
+4. Verificar o estado de debug/security/protection **sem alterá-lo** — via AP1/DCI somente depois do passo 3, ou eventualmente via outro mecanismo mais seguro (ex.: registrador de status exposto no espaço de memória via AP0, se existir e for documentado).
+5. Somente depois, planejar leitura de flash/SRAM/NVM3 para backup.
 
 Nenhum desses passos foi executado ainda além do que está documentado acima.

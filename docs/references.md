@@ -12,6 +12,11 @@ Links e documentos usados nesta investigação, por ordem de prioridade (oficial
 
 **Importante:** o EFR32MG21 é **Series 2**. Não usar endereços/registradores de documentação de Series 1 (ex.: EFR32MG1x) por analogia — o memory map muda entre séries.
 
+### Debug lock / Debug Challenge Interface (DCI) — ⚠️ ler antes de tocar em AP1
+
+- [AN1190: Series 2 Secure Debug (PDF, oficial)](https://www.silabs.com/documents/public/application-notes/an1190-efr32-secure-debug.pdf) — já lido nesta investigação (2026-09-05); descreve debug lock/unlock e o comando `Erase Device` (mass erase) via DCI ou mailbox. Ver [`swd.md`](swd.md) para os trechos relevantes extraídos.
+- **AN1303: Programming Series 2 Devices using the Debug Challenge Interface (DCI) and Serial Wire Debug (SWD)** — citado pelo AN1190 como a referência para o protocolo de registradores da DCI. **Ainda não lido nesta investigação; ler antes de qualquer comando `apreg`/`dpreg` direcionado ao AP1 (identificado como a DCI/AAP).**
+
 ## ARM — Cortex-M33
 
 - [Arm Cortex-M33 Processor Technical Reference Manual (múltiplas revisões, developer.arm.com)](https://developer.arm.com/documentation/100230/latest/)
