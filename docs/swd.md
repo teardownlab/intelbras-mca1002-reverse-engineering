@@ -336,10 +336,11 @@ Decodificação do payload "Debug port lock status" (per SE Command List oficial
 
 ## Próximos passos (somente READ-ONLY / SAFE)
 
-1. Identificar a variante exata do EFR32MG21 e ler DEVINFO (part number, revisão, flash size, RAM size) — pesquisar antes o endereço correto para EFR32 **Series 2** na documentação oficial Silicon Labs (não extrapolar endereços de Series 1).
+1. ~~Identificar a variante exata do EFR32MG21 e ler DEVINFO~~ — feito parcialmente (ver [`experiments.md`](experiments.md), entrada de leitura de `DEVINFO_PART`/`MEMINFO`/`MSIZE`): endereço base `0x0FE0E000` confirmado no Reference Manual oficial, mas `FAMILY`/`FAMILYNUM`/`MSIZE` deram valores fisicamente implausíveis (SRAM=513KB impossível para este chip). **Não confiar nesses números ainda.** Próxima tentativa: ler `DEVINFO_MODULENAME0..6` (`0x130`-`0x148`, ASCII, 4 chars/word) para identificação direta por texto.
 2. ~~Enumerar os Access Ports disponíveis no DAP.~~ Feito para AP0 e AP1 (ver acima). Pode haver mais (AP2, AP3...) — verificar depois, com a mesma cautela dada a AP1.
-3. **Ler o AN1303 (Silicon Labs, oficial) antes de qualquer outro comando em AP1.** AN1303 descreve o protocolo de registradores da DCI necessário para usar com segurança o comando `Read Lock Status` (que, segundo o AN1190, é somente leitura e sempre disponível) sem risco de acionar `Erase Device` ou outro comando por engano.
-4. Verificar o estado de debug/security/protection **sem alterá-lo** — via AP1/DCI somente depois do passo 3, ou eventualmente via outro mecanismo mais seguro (ex.: registrador de status exposto no espaço de memória via AP0, se existir e for documentado).
-5. Somente depois, planejar leitura de flash/SRAM/NVM3 para backup.
+3. ~~Entender o protocolo da DCI antes de qualquer outro comando em AP1.~~ Feito — ver seção "Protocolo completo da DCI" acima.
+4. ~~Verificar o estado de debug/security/protection sem alterá-lo.~~ Feito — `Read Lock Status` executado, ver acima: Standard Debug Unlock, sem lock ativo.
+5. Investigar por que `DEVINFO_PART`/`MSIZE` deram valores implausíveis — tentar `DEVINFO_MODULENAME`/`MODULEINFO` (ASCII) como fonte de identificação mais confiável antes de reexaminar os campos numéricos.
+6. Somente depois, planejar leitura de flash/SRAM/NVM3 para backup.
 
-Nenhum desses passos foi executado ainda além do que está documentado acima.
+Nenhum desses passos foi executado além do que está documentado acima.

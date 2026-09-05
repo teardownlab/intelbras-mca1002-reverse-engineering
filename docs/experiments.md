@@ -241,3 +241,37 @@ Classificação: cada `apreg` individual é uma leitura ou uma escrita em um reg
 **Status:** CONFIRMED.
 
 **Próximo passo:** com o estado de debug/lock confirmado como totalmente aberto, avançar para identificar a variante exata do EFR32MG21 via DEVINFO (part number, flash size, RAM size) — usando o AHB-AP (AP0), após confirmar o endereço correto de DEVINFO no Reference Manual oficial (Series 2). Continuar sem tocar novamente em AP1 além do que já foi feito.
+
+---
+
+## 2026-09-05 — Leitura de DEVINFO_PART/MEMINFO/MSIZE — resultado ambíguo, documentado com honestidade
+
+**Objetivo:** identificar part number, flash size e RAM size do EFR32MG21 via DEVINFO.
+
+**Pesquisa prévia:** baixado o EFR32xG21 Wireless Gecko Reference Manual oficial (Rev 1.0, `silabs.com`). Confirmado `FLASH_DEVINFO` base = `0x0FE0E000` via Figure 4.1 (System Address Space). Corrigido um erro de fonte de comunidade: um endereço `0x0FE08000` encontrado antes numa pesquisa era na verdade `FLASH_USERDATA`, não `DEVINFO` — descartado. Offsets confirmados em 6.4.1/6.4.2 (checados em duas extrações independentes do PDF, "layout" e "raw", que bateram exatamente uma com a outra e com um header CMSIS gerado automaticamente pela própria Silicon Labs, usado só como checagem cruzada): `DEVINFO_PART`=`0x004`, `DEVINFO_MEMINFO`=`0x008`, `DEVINFO_MSIZE`=`0x00C`.
+
+**Conexão:** mesma de sempre (Pico -> J3-5/J3-4/J3-2, RESET não conectado), via AP0 (AHB-AP) — AP1/DCI não tocado nesta entrada.
+
+**Comando:**
+
+```tcl
+mdw 0x0FE0E004 3
+```
+
+Classificação: READ-ONLY / SAFE (mesmo mecanismo de leitura já usado para CPUID).
+
+**Resultado:**
+
+```text
+0x0fe0e004: 00000015 40024024 02010013
+```
+
+**Interpretação:**
+
+`DEVINFO_PART` = `0x00000015`: `FAMILY`[29:24]=`0`, `FAMILYNUM`[21:16]=`0`, `DEVICENUM`[15:0]=`21`. `DEVICENUM=21` bate exatamente com "MG**21**", mas `FAMILY` deveria ser `1` (MG) e `FAMILYNUM` deveria ser `21` segundo a convenção documentada — ambos vieram `0`.
+
+`DEVINFO_MSIZE` = `0x02010013`: `SRAM`[26:16]=`513` KB, `FLASH`[15:0]=`19` KB. **`SRAM`=513 KB é fisicamente impossível** — o datasheet oficial do EFR32MG21 especifica RAM máxima de 96 KB. `FLASH`=19 KB também não corresponde a nenhum SKU conhecido (512/768/1024 KB).
+
+**Status:** UNKNOWN / INCONCLUSIVO. `DEVICENUM=21` é um indício forte (mas não prova) de EFR32MG21. Os campos `FAMILY`/`FAMILYNUM`/`MSIZE` não decodificam para valores fisicamente plausíveis com o layout de bits confirmado (checado 3x contra o RM oficial e um header CMSIS independente — a decodificação de bits está correta; o que está em aberto é por que os valores lidos não fazem sentido). Hipóteses não verificadas: (a) esses campos legados podem não ser preenchidos da forma esperada em módulos de terceiros (Rexense) vs. SoCs "nus" da Silicon Labs; (b) pode haver algum efeito de leitura ainda não identificado específico dessa região de flash. **Não tratar `SRAM=513KB`/`FLASH=19KB` como fatos sobre o hardware.**
+
+**Próximo passo:** ler `DEVINFO_MODULENAME0`..`MODULENAME6` (offsets `0x130`–`0x148`, confirmados no RM oficial) — região que armazena até 28 caracteres ASCII do nome do módulo (4 caracteres por word, `0xFF`=não escrito). Deve identificar o módulo de forma direta e inequívoca (ex.: "REX3B21S"), evitando a ambiguidade encontrada nos campos numéricos de FAMILY/MSIZE.
