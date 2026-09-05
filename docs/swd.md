@@ -203,6 +203,63 @@ E, sobre o comando `Erase Device` disponível via DCI (seção 5.2 / Tabela "Deb
 | Leitura de flash principal | Não tentada |
 | Leitura de SRAM | Não tentada |
 
+## Protocolo completo da DCI (AP1) — pesquisado, hardware NÃO tocado ainda
+
+Pesquisa feita em 2026-09-05 na documentação oficial Silicon Labs atual (`docs.silabs.com`, seção "Programming Series 2 Devices Using DCI and SWD" — sucessora do AN1303, que está formalmente deprecated e hoje só contém uma página de capa redirecionando para `docs.silabs.com`). Nenhum destes registradores foi lido/escrito no dispositivo ainda; isto é só pesquisa.
+
+### Conexão da DCI via SWD (conforme documentação oficial)
+
+1. Sequência JTAG-to-SWD.
+2. Ler IDCODE (SWD DP reg 0) — `0x6BA02477` para Series 2 com Cortex-M33 (bate com o DPIDR que já lemos).
+3. ABORT (SWD DP reg 0 = `0x0000001E`) para limpar erros/sticky flags.
+4. STAT (SWD DP reg 1 = `0x50000000`) para requisitar power-up do sistema/debug domain.
+5. SELECT (SWD DP reg 2 = `0x01000000`) para apontar a interface SWD do chip para a DCI.
+6. CSW (SWD AP reg 0 = `0x22000002`) para configurar transferência de 32 bits.
+
+### Registradores da DCI (expostos via AP1)
+
+| Registrador | Descrição | Endereço | Observações |
+|---|---|---:|---|
+| `DCI_WDATA` | Escreve dado/comando para a DCI | `0x1000` | Comando |
+| `DCI_RDATA` | Lê dado de resposta da DCI | `0x1004` | Resposta |
+| `DCI_STATUS` | Status dos acessos à DCI | `0x1008` | Bit 0 = `WPENDING` (write pendente; escritas em WDATA são descartadas enquanto ativo). Bit 8 = `RDATAVALID` (resposta pronta; limpo ao ler RDATA). |
+
+Mecanismo de acesso (por word): selecionar o registrador escrevendo seu endereço em **SWD AP register 1** (ex.: `0x1008` para status, `0x1000` para write, `0x1004` para read), depois ler/escrever o valor via **SWD AP register 3**. Em termos de OpenOCD, isso mapeia para `efr32.dap apreg 1 4 <addr>` (seleciona) seguido de `efr32.dap apreg 1 0xc <valor>` (ou leitura), aproximadamente — a sintaxe exata ainda precisa ser validada com cautela antes de qualquer execução.
+
+### Formato de comando/resposta da DCI
+
+Toda chamada começa escrevendo um word de comprimento (incluindo esse próprio word; mínimo 8) seguido do Command ID de 32 bits em `DCI_WDATA`, e payload adicional se aplicável. A resposta é um word (comprimento [15:0] + código de resposta [31:16]) seguido do payload de resposta.
+
+Códigos de resposta: `0`=OK, `1`=INVALID_COMMAND, `2`=AUTHORIZATION_ERROR, `3`=INVALID_SIGNATURE, `4`=BUS_ERROR, `5`=INTERNAL_ERROR, `6`=CRYPTO_ERROR, `7`=INVALID_PARAMETER, `8`=INTEGRITY_ERROR, `9`=SECUREBOOT_ERROR, `10`=SELFTEST_ERROR, `11`=NOT_INITIALIZED.
+
+### Lista de comandos SE via DCI — classificados por risco
+
+| Command ID | Nome | Classificação | Observação |
+|---|---|---|---|
+| `0xFE00` | Read Serial Number | **SAFE (leitura)** | Lê número de série provisionado de fábrica (16 bytes). |
+| `0xFE01` | Get Status | **SAFE (leitura)** | Inclui boot status, versões de firmware SE/MCU, **debug lock status**, secure boot config. |
+| `0xFE04` | Read User Configuration | **SAFE (leitura)** | Config não-reconfigurável do OTP. |
+| `0xFF08` | Read Public Key | **SAFE (leitura)** | Lê chave pública armazenada. |
+| `0x4311` | **Read Lock Status** | **SAFE (leitura)** | "This command is used to read the lock status of the debug port." Retorna bits: debug lock, device erase enabled, secure debug lock, debug lock hardware status, invasive/non-invasive locks. |
+| `0x430C` | Apply Lock | ⚠️ **DESTRUTIVO/ALTERA CONFIG** | Habilita o debug lock. |
+| `0x430D` | Enable Secure Debug | ⚠️ **ALTERA CONFIG** | Habilita secure debug. |
+| `0x430E` | Disable Secure Debug | ⚠️ **ALTERA CONFIG** | Desabilita secure debug. |
+| `0x430F` | **Erase Device** | 🛑 **MASS ERASE** | "Performs a device mass erase... clears and verifies the main flash and RAM." Apaga o firmware original. **NUNCA EXECUTAR.** |
+| `0x4310` | Disable Device Erase | 🛑 **IRREVERSÍVEL** | Desabilita permanentemente o comando Erase Device. One-time, permanente. **NUNCA EXECUTAR.** |
+| `0x4312` | Set Debug Restrictions | ⚠️ **ALTERA CONFIG** | Define bits de restrição de debug (DBGLOCK/NIDLOCK/SPIDLOCK/SPNIDLOCK). |
+| `0xFF00` | Initialize OTP | 🛑 **IRREVERSÍVEL, one-time** | Provisionamento de fábrica. **NUNCA EXECUTAR.** |
+| `0xFF07` | Initialize Public Key | 🛑 **IRREVERSÍVEL, one-time** | **NUNCA EXECUTAR.** |
+| `0xFF0B` | Initialize AES Key | 🛑 **IRREVERSÍVEL, one-time** (dispositivos HSE) | **NUNCA EXECUTAR.** |
+| `0x4302` / `0x4303` | SE Image Check / Apply | 🛑 **ALTERA FIRMWARE DO SE** | Upgrade de firmware do SE. **NUNCA EXECUTAR.** |
+
+### Ponto de decisão importante
+
+`Read Lock Status` (`0x4311`) e `Get Status` (`0xFE01`) são, **por especificação da Silicon Labs, comandos de consulta somente leitura, sempre disponíveis, sem efeito colateral** — é exatamente o que o item 7 do plano de investigação pede ("verificar estado de debug/security/protection SEM alterá-lo").
+
+Porém, **mecanicamente**, invocar qualquer comando da DCI — mesmo estes de leitura — exige **escrever** o word de comando em `DCI_WDATA` (via uma sequência de registros AP1 `apreg`). Isso não escreve em flash, NVM, nem altera nenhuma configuração persistente do dispositivo (são comandos de consulta ao Secure Engine, não ao controlador de memória), mas é, no nível de comando OpenOCD, uma operação de escrita em registrador (`apreg ... <valor>`), o que toca a letra da regra "nenhuma escrita" definida para esta fase do projeto, mesmo não tocando o espírito dela (nenhuma alteração persistente).
+
+**Por isso este projeto NÃO executará `Read Lock Status`/`Get Status` sem confirmação explícita do responsável pelo projeto**, mesmo estando confiantes de que são operações seguras segundo a documentação oficial. Ver decisão registrada em [`experiments.md`](experiments.md) / conversa do projeto.
+
 ## Próximos passos (somente READ-ONLY / SAFE)
 
 1. Identificar a variante exata do EFR32MG21 e ler DEVINFO (part number, revisão, flash size, RAM size) — pesquisar antes o endereço correto para EFR32 **Series 2** na documentação oficial Silicon Labs (não extrapolar endereços de Series 1).

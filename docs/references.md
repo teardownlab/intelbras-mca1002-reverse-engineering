@@ -15,7 +15,10 @@ Links e documentos usados nesta investigação, por ordem de prioridade (oficial
 ### Debug lock / Debug Challenge Interface (DCI) — ⚠️ ler antes de tocar em AP1
 
 - [AN1190: Series 2 Secure Debug (PDF, oficial)](https://www.silabs.com/documents/public/application-notes/an1190-efr32-secure-debug.pdf) — já lido nesta investigação (2026-09-05); descreve debug lock/unlock e o comando `Erase Device` (mass erase) via DCI ou mailbox. Ver [`swd.md`](swd.md) para os trechos relevantes extraídos.
-- **AN1303: Programming Series 2 Devices using the Debug Challenge Interface (DCI) and Serial Wire Debug (SWD)** — citado pelo AN1190 como a referência para o protocolo de registradores da DCI. **Ainda não lido nesta investigação; ler antes de qualquer comando `apreg`/`dpreg` direcionado ao AP1 (identificado como a DCI/AAP).**
+- **AN1303 (PDF)** está **deprecated** desde Simplicity SDK Suite 2025.12.0; o PDF atual em `silabs.com` contém apenas uma capa redirecionando para a documentação web. Conteúdo técnico consultado (2026-09-05) na versão web sucessora, oficial, em `docs.silabs.com`:
+  - [Debug Challenge Interface (DCI) — protocolo de registradores/conexão SWD](https://docs.silabs.com/connect-stack/latest/efr32-dci-swd-programming/03-debug-challenge-interface-dci)
+  - [SE Command List — lista completa de Command IDs (inclui `Read Lock Status` = `0x4311` e `Erase Device` = `0x430F`)](https://docs.silabs.com/connect-stack/latest/efr32-dci-swd-programming/05-se-command-list)
+  - Ver [`swd.md`](swd.md) para a tabela completa de comandos e classificação de risco extraída dessas páginas.
 
 ## ARM — Cortex-M33
 
