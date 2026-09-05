@@ -396,3 +396,20 @@ Classificação: READ-ONLY / SAFE (mesmo `mdw`, via AP0).
 **Status:** CONFIRMED — firmware presente e vetor de interrupções válido. Boa notícia para a prioridade de preservação do firmware original.
 
 **Próximo passo:** ler os primeiros 16 words de `0x00000000` (Stack Pointer + as 15 exceções padrão do Cortex-M: NMI, HardFault, MemManage, BusFault, UsageFault, SVCall, DebugMonitor, PendSV, SysTick) para começar a montar o mapa real do firmware atual.
+
+---
+
+## 2026-09-05 — Leitura dos primeiros 16 words do vetor de interrupções
+
+**Comando:** `mdw 0x00000000 16` — Classificação: READ-ONLY / SAFE.
+
+**Resultado:**
+
+```text
+0x00000000: 20001338 00003219 0000030f 00000c25 00000e13 00000e1b 000019bf 00000000
+0x00000020: 00000000 00000000 00000040 00001f33 00002083 00000074 000020e7 0000281b
+```
+
+**Interpretação:** mapeando pelos índices padrão do Cortex-M (0=SP, 1=Reset, 2=NMI, 3=HardFault, 4=MemManage, 5=BusFault, 6=UsageFault, 7–9=Reservado, 10=Reservado, 11=SVCall, 12=DebugMonitor, 13=Reservado, 14=PendSV, 15=SysTick): todos os handlers implementados (`Reset`,`NMI`,`HardFault`,`MemManage`,`BusFault`,`UsageFault`,`SVCall`,`DebugMonitor`,`PendSV`,`SysTick`) são endereços ímpares (Thumb) plausíveis dentro de uma flash pequena/modesta; os slots reservados 7, 8 e 9 são `0x00000000` como esperado. Os slots 10 e 13 (reservados) têm valores pequenos não-nulos (`0x40`, `0x74`) — não são ponteiros de código, possivelmente uso específico do GSDK/bootloader da Silicon Labs (ex.: informação de aplicação/checksum); não é motivo de preocupação, é padrão comum em imagens Gecko SDK.
+
+**Status:** CONFIRMED — vetor de interrupções completo e coerente, mais uma confirmação de firmware real e válido.
