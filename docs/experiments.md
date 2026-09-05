@@ -275,3 +275,40 @@ Classificação: READ-ONLY / SAFE (mesmo mecanismo de leitura já usado para CPU
 **Status:** UNKNOWN / INCONCLUSIVO. `DEVICENUM=21` é um indício forte (mas não prova) de EFR32MG21. Os campos `FAMILY`/`FAMILYNUM`/`MSIZE` não decodificam para valores fisicamente plausíveis com o layout de bits confirmado (checado 3x contra o RM oficial e um header CMSIS independente — a decodificação de bits está correta; o que está em aberto é por que os valores lidos não fazem sentido). Hipóteses não verificadas: (a) esses campos legados podem não ser preenchidos da forma esperada em módulos de terceiros (Rexense) vs. SoCs "nus" da Silicon Labs; (b) pode haver algum efeito de leitura ainda não identificado específico dessa região de flash. **Não tratar `SRAM=513KB`/`FLASH=19KB` como fatos sobre o hardware.**
 
 **Próximo passo:** ler `DEVINFO_MODULENAME0`..`MODULENAME6` (offsets `0x130`–`0x148`, confirmados no RM oficial) — região que armazena até 28 caracteres ASCII do nome do módulo (4 caracteres por word, `0xFF`=não escrito). Deve identificar o módulo de forma direta e inequívoca (ex.: "REX3B21S"), evitando a ambiguidade encontrada nos campos numéricos de FAMILY/MSIZE.
+
+---
+
+## 2026-09-05 — Leitura de DEVINFO_MODULENAME0..6 — resultado inesperado, e teste de reprodutibilidade
+
+**Objetivo:** ler o nome do módulo em ASCII (`DEVINFO_MODULENAME0`..`6`, offsets `0x130`-`0x148`) para identificação direta, e depois verificar se as leituras estranhas de DEVINFO são reprodutíveis.
+
+**Conexão:** mesma de sempre (Pico -> J3-5/J3-4/J3-2, RESET não conectado), via AP0.
+
+**Comando 1:**
+
+```tcl
+mdw 0x0FE0E130 7
+```
+
+**Resultado 1:**
+
+```text
+0x0fe0e130: a80200d8 00001300 a8020110 00000549 a80200ac 16d55534 a80180ac
+```
+
+**Interpretação 1:** isso **não é ASCII** (bytes como `D8 00 02 A8` não são caracteres imprimíveis) e **não é o padrão `0xFF`** (não escrito) previsto pela especificação para essa região. Padrão lembra dados/ponteiros (repetição de `0xA802` no byte alto de vários words), não uma string de nome de módulo.
+
+**Comando 2 (reprodutibilidade):** repetição, em nova conexão SWD independente (novo processo OpenOCD), de `mdw 0x0FE0E004 3` e `mdw 0x0FE0E130 7`.
+
+**Resultado 2:**
+
+```text
+0x0fe0e004: 00000015 40024024 02010013
+0x0fe0e130: a80200d8 00001300 a8020110 00000549 a80200ac 16d55534 a80180ac
+```
+
+**Interpretação 2:** valores **idênticos, byte a byte**, em relação às leituras anteriores. Isso descarta ruído de barramento/falha transitória de leitura como explicação — é conteúdo real e estável de memória nesses endereços. O que permanece sem explicação é por que esse conteúdo não corresponde ao que o Reference Manual descreve para essas posições (nem os valores de `FAMILY`/`MSIZE` fazem sentido físico, nem `MODULENAME` parece ASCII ou "não escrito").
+
+**Status:** CONFIRMED (leituras são estáveis/reprodutíveis). UNKNOWN (por que o conteúdo não corresponde à especificação genérica da Silicon Labs para essas posições — hipóteses em aberto: endianness/mapeamento de página específico deste die, diferença de revisão do EFR32MG21 usada neste módulo Rexense vs. a documentada no RM Rev 1.0, ou possibilidade de os campos `DEVINFO_MODULENAME` simplesmente não serem usados por este fabricante de módulo).
+
+**Próximo passo:** ler `DEVINFO_INFO` (offset `0x000`, "DI Page Version", campo `DEVINFOREV`) como teste de sanidade adicional — é um campo simples, documentado como "initially 1", que serve de referência de baixo risco para saber se o problema está na região de `0x004` em diante ou se afeta a página inteira desde o primeiro word.
