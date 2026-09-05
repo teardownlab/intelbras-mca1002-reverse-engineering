@@ -198,7 +198,7 @@ E, sobre o comando `Erase Device` disponível via DCI (seção 5.2 / Tabela "Deb
 | Leitura de memória via AHB-AP (PPB) | CONFIRMED — funcional |
 | AP0 IDR (enumeração de Access Ports) | CONFIRMED — `0x84770001` = MEM-AP (AHB-AP), ARM |
 | AP1 IDR | CONFIRMED — `0x54770002` = MEM-AP (APB-AP), ARM. INFERRED = DCI/AAP (Silicon Labs), usada para debug lock/unlock/mass erase. **Não tocar além de `apid` sem ler AN1303 antes.** |
-| Estado de debug/security lock (DCI/AP lock do EFR32 Series 2) | UNKNOWN — ainda não verificado |
+| Estado de debug/security lock (DCI/AP lock do EFR32 Series 2) | CONFIRMED — Standard Debug Unlock: debug não locked, secure debug desabilitado, device erase habilitado (via `Read Lock Status` / `0x4311`) |
 | Part number exato / flash size / RAM size do EFR32MG21 | UNKNOWN — ainda não lido de DEVINFO |
 | Leitura de flash principal | Não tentada |
 | Leitura de SRAM | Não tentada |
@@ -259,6 +259,80 @@ Códigos de resposta: `0`=OK, `1`=INVALID_COMMAND, `2`=AUTHORIZATION_ERROR, `3`=
 Porém, **mecanicamente**, invocar qualquer comando da DCI — mesmo estes de leitura — exige **escrever** o word de comando em `DCI_WDATA` (via uma sequência de registros AP1 `apreg`). Isso não escreve em flash, NVM, nem altera nenhuma configuração persistente do dispositivo (são comandos de consulta ao Secure Engine, não ao controlador de memória), mas é, no nível de comando OpenOCD, uma operação de escrita em registrador (`apreg ... <valor>`), o que toca a letra da regra "nenhuma escrita" definida para esta fase do projeto, mesmo não tocando o espírito dela (nenhuma alteração persistente).
 
 **Por isso este projeto NÃO executará `Read Lock Status`/`Get Status` sem confirmação explícita do responsável pelo projeto**, mesmo estando confiantes de que são operações seguras segundo a documentação oficial. Ver decisão registrada em [`experiments.md`](experiments.md) / conversa do projeto.
+
+**Atualização (2026-09-05): confirmação obtida — `Read Lock Status` foi executado.** Ver seção seguinte.
+
+### `Read Lock Status` (0x4311) executado — resultado
+
+O responsável pelo projeto autorizou explicitamente a execução de `Read Lock Status` (0x4311) via DCI, entendendo que é uma consulta sempre-disponível e sem efeito colateral segundo a especificação oficial, mesmo envolvendo uma escrita de baixo nível no mailbox volátil do Secure Engine (não em flash/NVM).
+
+**Mapeamento dos registradores abstratos da DCI para comandos OpenOCD:** "SWD AP register N" na documentação Silicon Labs corresponde ao registrador interno do MEM-AP no offset `N*4` bytes — registrador 0 = CSW (`0x00`), registrador 1 = TAR (`0x04`), registrador 3 = DRW (`0x0C`). Ou seja, "apontar para o endereço X" = escrever X em TAR (`efr32.dap apreg 1 4 X`); "ler/escrever o dado" = ler/escrever DRW (`efr32.dap apreg 1 0xc [valor]`).
+
+Sequência executada (todas operações em AP1):
+
+```tcl
+efr32.dap apreg 1 0 0x22000002      ; CSW: transferências de 32 bits
+efr32.dap apreg 1 4 0x1008          ; TAR -> DCI_STATUS
+efr32.dap apreg 1 0xc               ; lê status (idle esperado)
+efr32.dap apreg 1 4 0x1000          ; TAR -> DCI_WDATA
+efr32.dap apreg 1 0xc 0x00000008    ; escreve word0 = comprimento (8)
+efr32.dap apreg 1 4 0x1008
+efr32.dap apreg 1 0xc               ; confirma status antes do próximo word
+efr32.dap apreg 1 4 0x1000
+efr32.dap apreg 1 0xc 0x43110000    ; escreve word1 = Command ID (0x4311 << 16)
+efr32.dap apreg 1 4 0x1008
+efr32.dap apreg 1 0xc               ; poll até RDATAVALID
+efr32.dap apreg 1 4 0x1004          ; TAR -> DCI_RDATA
+efr32.dap apreg 1 0xc               ; lê response word0 (comprimento + código)
+efr32.dap apreg 1 4 0x1008
+efr32.dap apreg 1 0xc               ; confirma RDATAVALID para o próximo word
+efr32.dap apreg 1 4 0x1004
+efr32.dap apreg 1 0xc               ; lê response word1 (payload)
+```
+
+Resultado bruto (trecho relevante da saída do OpenOCD, em modo batch):
+
+```text
+--STATUS before--
+0x00000000
+--WRITE word0 (length=8)--
+--STATUS after word0--
+0x00000000
+--WRITE word1 (cmd=0x4311 Read Lock Status)--
+--STATUS poll 1--
+0x00000100
+--READ response word0 (len+code)--
+0x00000008
+--STATUS poll 4--
+0x00000100
+--READ response word1 (payload)--
+0x00000002
+```
+
+**Decodificação:**
+
+- `DCI_STATUS` antes do comando = `0x00000000` → `WPENDING`=0, `RDATAVALID`=0 (idle, nenhum comando pendente de antes — esperado, primeira interação).
+- Após enviar os dois words do comando, `DCI_STATUS` = `0x00000100` → bit 8 (`RDATAVALID`) setado, resposta pronta.
+- Response word0 = `0x00000008` → comprimento total da resposta = 8 bytes (0x0008, bits [15:0]); código de resposta = `0x0000` = **`SE_RESPONSE_OK`** (bits [31:16]).
+- Response word1 (payload, 4 bytes) = `0x00000002`.
+
+Decodificação do payload "Debug port lock status" (per SE Command List oficial):
+
+| Bit | Campo | Valor | Significado |
+|---|---|---|---|
+| 0 | Debug lock (configuration status) | 0 | Debug **não** está locked |
+| 1 | Device erase enabled | **1** | Comando `Erase Device` está **habilitado/disponível** |
+| 2 | Secure debug lock enabled | 0 | Secure debug não habilitado |
+| 3–4 | Reservado | — | — |
+| 5 | Debug lock hardware status | 0 | Sem lock em hardware |
+| 6 | Invasive debug lock | 0 | — |
+| 7 | Non-invasive debug lock | 0 | — |
+| 8 | Secure invasive debug lock | 0 | — |
+| 9 | Secure non-invasive debug lock | 0 | — |
+
+**Interpretação:** o EFR32MG21 deste módulo está em estado **"Standard Debug Unlock"** (conforme terminologia do AN1190) — nenhum lock de debug ativo, secure debug não habilitado. Isso é consistente com e explica por que já conseguimos ler CPUID e enumerar AP0/AP1 sem qualquer restrição. **"Device Erase enabled" = 1 confirma que o comando `Erase Device` (`0x430F`) funcionaria se executado** — reforça, com dados reais deste dispositivo, por que ele permanece permanentemente proibido neste projeto.
+
+**Status:** CONFIRMED — debug port unlocked, secure debug disabled, device erase enabled (mas não executado, nem será).
 
 ## Próximos passos (somente READ-ONLY / SAFE)
 

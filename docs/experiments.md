@@ -176,6 +176,7 @@ Info : [efr32.cpu] Examination succeed
 
 ## 2026-09-05 — Enumeração de AP1: identificado como DCI/AAP (Silicon Labs) — ⚠️ achado de segurança
 
+
 **Objetivo:** continuar a enumeração de Access Ports, testando AP1.
 
 **Conexão:** mesma configuração de sempre (Pico -> J3-5/J3-4/J3-2, RESET não conectado), OpenOCD em modo batch, mesmo bring-up de sempre.
@@ -199,3 +200,44 @@ Classificação: READ-ONLY / SAFE (comando `apid`, sem variante de escrita).
 **Status:** CONFIRMED (AP1 existe, é APB-AP ARM). INFERRED, alta confiança, pendente de AN1303 (corresponde à DCI/AAP). UNKNOWN (protocolo exato de registradores).
 
 **Próximo passo:** ler o AN1303 (Silicon Labs, oficial) — "Programming Series 2 Devices using the Debug Challenge Interface (DCI) and Serial Wire Debug (SWD)" — para entender o protocolo de registradores da DCI antes de qualquer outro comando em AP1. Nenhum `apreg`/`dpreg`/`mdw` em AP1 até essa pesquisa estar completa.
+
+---
+
+## 2026-09-05 — Pesquisa do protocolo DCI (sucessor web do AN1303) + execução de `Read Lock Status` (0x4311)
+
+**Objetivo:** entender o protocolo de registradores da DCI (item pendente da entrada anterior) e, com isso, verificar o estado de debug/security lock do EFR32MG21 sem alterá-lo.
+
+**Pesquisa (sem tocar hardware):** o PDF do AN1303 está deprecated desde Simplicity SDK Suite 2025.12.0 (contém só uma capa redirecionando para `docs.silabs.com`). Consultadas as páginas web oficiais sucessoras: "Debug Challenge Interface (DCI)" e "SE Command List" (`docs.silabs.com/connect-stack/latest/efr32-dci-swd-programming/...`). Detalhes completos e tabela de comandos com classificação de risco documentados em [`swd.md`](swd.md).
+
+**Ponto de decisão:** `Read Lock Status` (Command ID `0x4311`) é documentado pela Silicon Labs como consulta somente leitura, sempre disponível, sem efeito colateral persistente — mas mecanicamente exige uma escrita de registrador (`apreg`) no mailbox volátil do Secure Engine (via AP1), tocando a letra da regra de "nenhuma escrita" desta fase mesmo não tocando seu espírito. Apresentado ao responsável pelo projeto, que autorizou explicitamente a execução.
+
+**Conexão:** mesma de sempre (Pico -> J3-5/J3-4/J3-2, RESET não conectado). OpenOCD em modo batch.
+
+**Comando:** sequência completa de `efr32.dap apreg 1 ...` implementando o protocolo DCI oficial (CSW, TAR->DCI_STATUS/DCI_WDATA/DCI_RDATA, DRW) para enviar o comando `Read Lock Status` e ler a resposta — sequência completa documentada em [`swd.md`](swd.md#read-lock-status-0x4311-executado--resultado`).
+
+Classificação: cada `apreg` individual é uma leitura ou uma escrita em um registrador de mailbox volátil do Secure Engine — não escreve em flash, NVM, nem em nenhuma configuração persistente do dispositivo. Autorizado explicitamente pelo responsável do projeto como exceção a esta fase (ver acima).
+
+**Resultado:**
+
+```text
+--STATUS before--
+0x00000000
+--WRITE word0 (length=8)--
+--STATUS after word0--
+0x00000000
+--WRITE word1 (cmd=0x4311 Read Lock Status)--
+--STATUS poll 1--
+0x00000100
+--READ response word0 (len+code)--
+0x00000008
+--STATUS poll 4--
+0x00000100
+--READ response word1 (payload)--
+0x00000002
+```
+
+**Interpretação:** resposta = comprimento 8 bytes, código `SE_RESPONSE_OK` (0). Payload = `0x00000002` → apenas bit 1 (`Device erase enabled`) setado; bit 0 (`Debug lock`), bit 2 (`Secure debug lock`) e bit 5 (`Debug lock hardware status`) todos zero. **O EFR32MG21 está em "Standard Debug Unlock": debug port aberto, sem lock ativo, secure debug desabilitado, comando `Erase Device` habilitado (mas não executado).** Isso confirma e explica por que todas as leituras via SWD feitas até agora funcionaram sem qualquer restrição, e reforça por que `Erase Device` (`0x430F`) deve permanecer permanentemente fora de cogitação.
+
+**Status:** CONFIRMED.
+
+**Próximo passo:** com o estado de debug/lock confirmado como totalmente aberto, avançar para identificar a variante exata do EFR32MG21 via DEVINFO (part number, flash size, RAM size) — usando o AHB-AP (AP0), após confirmar o endereço correto de DEVINFO no Reference Manual oficial (Series 2). Continuar sem tocar novamente em AP1 além do que já foi feito.

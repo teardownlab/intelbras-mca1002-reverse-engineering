@@ -186,7 +186,8 @@ Ao usar USB-UART futuramente:
   - CPUID (leitura via AHB-AP, `mdw 0xE000ED00 1`) = `0x410FD213`, consistente com Cortex-M33
   - leitura de memória via AHB-AP **funcional** (somente leitura testada até agora)
   - AP0 IDR = `0x84770001` → MEM-AP tipo AHB-AP, JEP106 = ARM Limited (`efr32.dap apid 0`)
-  - AP1 IDR = `0x54770002` → MEM-AP tipo APB-AP; pesquisa contra o AN1190 oficial da Silicon Labs indica ser a **DCI (Debug Challenge Interface) / AAP** — o mecanismo de debug lock/unlock e **mass erase** dos Series 2. ⚠️ **Nenhuma operação além de `apid` foi ou será feita neste AP sem antes ler o AN1303 (protocolo de registradores da DCI).**
+  - AP1 IDR = `0x54770002` → MEM-AP tipo APB-AP; confirmado como a **DCI (Debug Challenge Interface)** dos EFR32 Series 2 — o mecanismo de debug lock/unlock e **mass erase** (`Erase Device` = `0x430F`, permanentemente proibido neste projeto).
+  - **Estado de debug/security lock confirmado** via `Read Lock Status` (`0x4311`, comando oficial de consulta, autorizado explicitamente antes de rodar): debug port em **"Standard Debug Unlock"** — sem lock ativo, secure debug desabilitado, `Erase Device` habilitado (mas não executado).
   - detalhes completos em [`docs/swd.md`](docs/swd.md)
 
 ### Ainda não confirmado
@@ -196,7 +197,6 @@ Ao usar USB-UART futuramente:
 - se essa interface é UART, e se sim baud rate/protocolo;
 - função de **J3-6**;
 - firmware atual do EFR32 (ainda não lido/analisado);
-- estado de debug/security/read protection do EFR32 (a verificar sem alterar);
 - mapa completo de memória do EFR32MG21 (flash size, RAM size, DEVINFO, NVM3, bootloader, EUI-64, manufacturing tokens, calibration data);
 - compatibilidade do rádio existente com EZSP/NCP;
 - uso direto por ZHA/Zigbee2MQTT;
@@ -204,7 +204,7 @@ Ao usar USB-UART futuramente:
 
 ## Próximo passo
 
-Com acesso SWD confirmado e leitura de memória funcional via AHB-AP, o próximo objetivo é identificar completamente a variante do EFR32MG21 (part number, revisão, flash size, RAM size) e verificar o estado de debug/security **sem alterá-lo**, como base para um plano de backup completo do firmware original antes de qualquer modificação.
+Com acesso SWD confirmado, leitura de memória funcional via AHB-AP, e o estado de debug/security confirmado como totalmente aberto ("Standard Debug Unlock"), o próximo objetivo é identificar completamente a variante do EFR32MG21 (part number, revisão, flash size, RAM size) via DEVINFO, como base para um plano de backup completo do firmware original antes de qualquer modificação.
 
 Nenhuma operação destrutiva (erase, write, unlock, recover) será feita nesta etapa.
 
