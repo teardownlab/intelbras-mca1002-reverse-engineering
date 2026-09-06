@@ -27,13 +27,34 @@ O firmware original (Rexense, `REXENSE_HA_COO_Stk6710_MG215_1.7.3`) implementa u
 
 | Etapa | Status |
 |---|---|
-| 1. Confirmar variante exata do chip | INFERRED como `EFR32MG21A020F512IM32` (512 KB flash) — usada para gerar o projeto; ainda não 100% CONFIRMED contra a placa real |
+| 1. Confirmar variante exata do chip | INFERRED como `EFR32MG21A020F512IM32` (512 KB flash, 96 KB RAM) — o link do firmware coube exatamente dentro do orçamento de RAM desse chip (ver abaixo), o que é uma confirmação indireta forte |
 | 2. Toolchain headless (SLT) | **Concluído** — GSDK 2026.6.1, slc-cli 6.0.23, gcc-arm-none-eabi 14.2, LLVM embedded 21.1, CMake, Ninja, Commander, zap, tudo instalado via `slt install` |
-| 3. Gerar projeto NCP-UART-HW customizado | **Projeto gerado** (`zigbee_ncp_uart_hw_mca1002`), mas com iostream padrão errado para nosso caso (ver nota abaixo) — falta ajustar pinos |
-| 4. Compilar | Não iniciado |
+| 3. Gerar projeto NCP-UART-HW customizado | **Concluído** — `iostream_usart` (instância `vcom`) configurado com USART0, TX=PA5, RX=PA6, sem controle de fluxo (2 fios) |
+| 4. Compilar | **Concluído com sucesso** — ver detalhes abaixo |
 | 5. Confirmar pinos PA5/PA6 fisicamente | Não iniciado |
 | 6. Gravar via SWD | Não iniciado — aguarda confirmação explícita quando chegar a hora |
 | 7. Testar com Z2M/ZHA | Não iniciado |
+
+### Build bem-sucedido (2026-09-05)
+
+```
+cmake --workflow --preset project   (em cmake_gcc/, toolchain arm-none-eabi-gcc 14.2 via SLT)
+```
+
+Resultado: `zigbee_ncp_uart_hw.out` / `.hex` / `.bin` / `.s37` gerados com sucesso (275/275 objetos, link ok).
+
+```
+   text	   data	    bss	    dec	    hex	filename
+ 212380	   1572	  96484	 310436	  4bca4	zigbee_ncp_uart_hw.out
+```
+
+- Flash usada: ~212 KB de ~496 KB disponíveis (512 KB − 16 KB do bootloader) — folga confortável.
+- RAM usada (data+bss): ~95,8 KB de 96 KB — **margem apertada** (linker aceitou, mas quase no limite). Se formos adicionar funcionalidade extra no futuro (ex.: Green Power, mais binding table), pode ser necessário desabilitar algum componente opcional para liberar RAM.
+- Aviso não-crítico: `RAIL PTI peripheral not configured` (interface de debug de RF, não usada — pode ser ignorado ou desabilitado depois).
+
+**O fato do link ter sido bem-sucedido dentro do limite de RAM de 96 KB é uma confirmação indireta adicional de que `EFR32MG21A020F512IM32` (ou uma variante com a mesma RAM/flash) é a escolha certa** — se o chip real tivesse menos RAM, o linker teria recusado por estouro de memória.
+
+Arquivos de firmware ainda **não gravados** em lugar nenhum: `C:\Users\guilh\silabs-tools\workspace\zigbee_ncp_uart_hw_mca1002\cmake_gcc\build\base\zigbee_ncp_uart_hw.{out,hex,bin,s37}`.
 
 ### Nota técnica: como o ASH/EZSP escolhe o UART físico
 
