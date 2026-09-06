@@ -553,3 +553,55 @@ mdw 0x00076000 16
 **Status:** INCONCLUSIVO. Não confirma nem descarta a localização do NVM3.
 
 **Próximo passo (sessão futura):** escanear uma faixa maior perto do topo da flash em busca de dados não-apagados (indicando página NVM3 realmente em uso), ou implementar o parsing completo do cabeçalho de 5 words do NVM3 antes de tentar interpretar qualquer conteúdo como dados de rede Zigbee.
+
+---
+
+## 2026-09-05 — Backup completo da flash (512 KB) e análise de strings — protocolo do host identificado
+
+**Objetivo:** com o mapa de memória minimamente estabelecido, executar o backup completo pedido desde o início do projeto, e então analisar o conteúdo (localmente, sem tocar o hardware de novo) em busca de pistas sobre o protocolo usado entre o EFR32MG21 e o resto do hardware (RE761-N4P / host) — essencial para avaliar viabilidade de uso local com Home Assistant.
+
+**Comando (hardware, único desta entrada):**
+
+```tcl
+dump_image mca1002_efr32_flash_full_2026-09-05.bin 0x00000000 0x80000
+```
+
+Classificação: READ-ONLY / SAFE. `dump_image` é o inverso de `load_image` (que grava no dispositivo e continua proibido); aqui apenas lê 512 KB da flash via AHB-AP e salva localmente. Executado com sucesso: 524.288 bytes em ~8s.
+
+**Verificação:** primeiros 16 bytes do dump conferem exatamente com a leitura anterior via `mdw 0x00000000 2`. Metadados completos (SHA-256, caminho local) em [`swd.md`](swd.md).
+
+**Análise de strings (local, no arquivo já salvo — nenhum comando adicional no hardware):**
+
+Extração de strings ASCII (≥6 caracteres) do dump revelou:
+
+```text
+Rexense boot4.0.0
+REXENSE_HA_COO_Stk6710_MG215_1.7.3: Jul 28 2023,14:34:32
+```
+
+— confirma data de build do firmware: **28/07/2023**.
+
+Conjunto extenso de comandos **AT proprietários** (interface de controle via UART):
+
+```text
+AT+VER, AT+SETCH=, AT+NOAPSACK=, AT+NOROTDISC=, AT+COOCFG=, AT+RESET,
+AT+FORM=, AT+LEAVE, AT+PERMITJOIN=, AT+FJS, AT+EDSCAN, AT+GETNETINFO,
+AT+GETINFO, AT+SHOWADDR, AT+SETMAC=, AT+SIGNATURE=, AT+ERASECIB,
+AT+ROUTEREQ=, AT+MTO, AT+TONE=, AT+SHOWCNT, AT+SETCNT=, AT+AUTODISCEN=,
+AT+PRINT=, AT+FRAGTEST=, AT+RANDOM, AT+WFCINV=, AT+WFCDUTY=, AT+WFCGAP=
+```
+
+Também encontrado: `"ASH Frame Error"`, `"ASH Overrun Error"` (código padrão de framing ASH da Silicon Labs, normalmente usado para transportar EZSP), `"Network Key   = "` (string de formato de log/debug — não confirma se expõe a chave real em uso; não testado), `"ZigBeeAlliance09Open network"` (constante pública do Zigbee Alliance — TC link key padrão para redes "abertas", não é segredo), e diversas strings de diagnóstico Ember padrão (`Mac Rx/Tx`, `APS Rx/Tx`, contadores, endpoint/cluster).
+
+**Interpretação — achado estratégico central para o objetivo do projeto:**
+
+Este firmware **não expõe o protocolo EZSP padrão da Silicon Labs diretamente aos comandos de aplicação**. Em vez disso, a Rexense implementou uma **camada de comandos AT proprietária** (`AT+FORM`, `AT+PERMITJOIN`, `AT+GETNETINFO`, `AT+SETMAC`, etc.) para controlar o coordenador Zigbee via UART — provavelmente é assim que o RE761-N4P (ou o chip Wi-Fi, ainda não identificado) comanda o rádio Zigbee e retransmite eventos para a nuvem Mibo/Intelbras. As strings `"ASH Frame Error"`/`"ASH Overrun Error"` indicam que o driver de framing ASH da Silicon Labs está presente no binário (biblioteca padrão do host driver do EmberZNet) — não está confirmado se os comandos AT trafegam encapsulados dentro de frames ASH ou se é uma camada serial totalmente separada/direta; **não investigado ainda**.
+
+**Consequência prática:** **ZHA e Zigbee2MQTT (drivers `bellows`/`ember`) não conseguem se comunicar com este firmware como está**, pois esperam EZSP binário padrão, não este conjunto de comandos AT proprietário. Para uso local com Home Assistant, existem basicamente dois caminhos:
+
+1. **Engenharia reversa do protocolo AT/ASH** e desenvolvimento de uma ponte/driver customizado (mantém o firmware original — alinhado com a prioridade de preservação do projeto, mas é trabalho substancial: seria necessário também entender como os EVENTOS recebidos, não apenas comandos, são reportados ao host — ainda não encontrado nas strings).
+2. **Reflash do EFR32MG21 com firmware NCP/EZSP oficial da Silicon Labs** — tecnicamente mais direto para compatibilidade com ZHA/Zigbee2MQTT, mas contraria a instrução atual do projeto de não substituir firmware nesta fase, e depende de melhor entendimento do mapa de flash/bootloader antes de ser sequer considerado.
+
+**Status:** CONFIRMED — conjunto de comandos AT proprietário presente no firmware; build de 28/07/2023. INFERRED — driver ASH presente mas papel exato no protocolo do host ainda não confirmado. CONFIRMED (consequência lógica) — incompatibilidade direta com ZHA/Zigbee2MQTT no estado atual do firmware.
+
+**Próximo passo:** decisão do responsável do projeto sobre qual caminho seguir (engenharia reversa do protocolo AT/ASH vs. considerar reflash mais adiante). Se optar pela engenharia reversa, o próximo passo técnico seria capturar tráfego UART real entre o EFR32MG21 e o resto da placa (com o RESET ainda não conectado e sem alterar nada — apenas escuta passiva), já que J3-6 (ainda não identificado) ou os pinos UART do REX3B21S (documentados como PA5/TXD e PA6/RXD, ainda não testados por continuidade) podem ser o caminho físico dessa comunicação.

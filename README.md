@@ -222,11 +222,26 @@ REXENSE
 
 **`COO` muito provavelmente significa "Coordinator"** — ou seja, há indício forte (ainda não 100% confirmado) de que **este firmware específico já roda como Coordenador Zigbee**, não apenas como NCP/Router genérico. Isso é diretamente relevante para o objetivo do projeto (usar o MCA 1002 como coordenador Zigbee local). Versão do firmware: `1.7.3`. Detalhes completos, incluindo o registro byte a byte, em [`docs/experiments.md`](docs/experiments.md).
 
+## Backup completo realizado
+
+Backup completo da flash (512 KB, `0x00000000`–`0x0007FFFF`) feito via `dump_image` (leitura pura). Arquivo mantido **fora do Git e fora do OneDrive** (pode conter chaves de rede reais); apenas metadados (SHA-256, tamanho) documentados em [`docs/swd.md`](docs/swd.md).
+
+## Achado estratégico: protocolo do host é proprietário (AT commands), não EZSP padrão
+
+Análise de strings no backup revelou que este firmware **não fala EZSP puro** com o resto do hardware — a Rexense implementou uma **camada de comandos AT proprietária** sobre UART (`AT+FORM`, `AT+PERMITJOIN`, `AT+GETNETINFO`, `AT+SETMAC`, `AT+COOCFG`, entre ~29 comandos identificados) para controlar o coordenador Zigbee. Há indícios (strings `"ASH Frame Error"`/`"ASH Overrun Error"`) de que o framing ASH da Silicon Labs está presente, mas não está confirmado se os comandos AT trafegam dentro de frames ASH ou por uma via separada.
+
+**Consequência prática para o objetivo do projeto (usar como coordenador Zigbee local no Home Assistant):** com o firmware atual, **ZHA e Zigbee2MQTT não conseguem se comunicar diretamente** com este rádio — ambos esperam EZSP binário padrão via `bellows`/`ember`, não este conjunto de comandos AT proprietário. Build do firmware identificado: `REXENSE_HA_COO_Stk6710_MG215_1.7.3`, de 28/07/2023.
+
+Dois caminhos possíveis a partir daqui:
+
+1. **Engenharia reversa do protocolo AT/ASH** e criação de uma ponte/driver customizado — preserva o firmware original, mas exige entender também como eventos/dados recebidos são reportados ao host (ainda não encontrado nas strings).
+2. **Reflash do EFR32MG21 com firmware NCP/EZSP oficial** — mais direto para compatibilidade, mas contraria a prioridade atual do projeto de não substituir firmware, e só seria considerado depois de entendimento e backup completos.
+
+Detalhes completos da análise em [`docs/experiments.md`](docs/experiments.md).
+
 ## Próximo passo
 
-Tentativas de identificar part number/flash size/RAM size/EUI-64 via campos de conveniência da `DEVINFO` (`FAMILY`, `MSIZE`, `MODULENAME`, `EUI64`) deram resultados implausíveis ou não reconhecíveis (ver [`docs/experiments.md`](docs/experiments.md) para o registro completo e honesto dessa investigação, incluindo testes de reprodutibilidade). Isso deixou de ser bloqueante: identificamos o firmware por uma via completamente diferente (acima), mais confiável.
-
-Próximos passos sugeridos: confirmar a interpretação de "COO" como Coordinator (pesquisar mais strings/dados na aplicação), determinar o fim real da região de aplicação (para saber o tamanho de flash utilizado, já que a via DEVINFO falhou), e avançar para NVM3 (rede/chaves Zigbee) e plano de backup.
+Decisão em aberto: seguir com engenharia reversa do protocolo AT/UART (próximo passo técnico seria captura passiva de tráfego UART real, usando os pinos PA5/TXD e PA6/RXD do REX3B21S, ainda não testados por continuidade) ou considerar reflash mais adiante. Também em aberto, com prioridade menor: confirmar tamanho real da flash (hoje INFERRED como 512 KB), localizar dados NVM3 reais, e identificar o módulo RE761-N4P.
 
 Nenhuma operação destrutiva (erase, write, unlock, recover) será feita nesta etapa.
 
