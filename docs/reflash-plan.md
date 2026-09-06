@@ -122,6 +122,19 @@ A confirmar por continuidade (placa desligada) antes de soldar fios definitivos 
 6. Configurar Zigbee2MQTT (driver `ember`) ou ZHA (`bellows`) apontando para essa porta, baud rate **115200** (definido no firmware).
 7. Testar pareamento de dispositivos Zigbee reais.
 
+## Etapa 5 concluída — TXD/RXD localizados fisicamente (2026-09-06)
+
+Resolvido usando o manual oficial da Rexense (pinout completo, ver [`measurements.md`](measurements.md)) combinado com continuidade e a numeração serigrafada nas extremidades da fileira de pads (achado no meio do processo: a placa tem os números "7" e "1" impressos nas pontas da fileira, o que permite posicionar os pinos intermediários por contagem direta).
+
+**Descobertas complementares durante a investigação:**
+- **J1 ("WIFI_DEBUG")** — testado e **não tem relação com TXD/RXD do REX3B21S**. Pad J1-2 = GND (confirmado, mesmo GND de sempre). Pads J1-3/J1-4 conectam a pinos específicos do chip Wi-Fi (RE761, pinos 35 e 34 respectivamente — provavelmente um par UART **próprio** desse chip), mas **sem continuidade com a fileira do REX3B21**. Conclusão: o firmware **original** da Rexense usava outro par de pinos do EFR32 (não PA5/PA6) para conversar com o chip Wi-Fi — o que significa que **PA5/PA6 (pinos 3/4) estão livres, sem risco de conflito com o chip Wi-Fi**.
+- **J3-3 (RESET) tem continuidade com o pino 12 do chip RE761** — o chip Wi-Fi controla o reset do módulo Zigbee. Não afeta o plano atual, só registro.
+- **J3-1 (VCC) tem continuidade com o pino 2 do RE761** — trilha de alimentação compartilhada, esperado.
+
+**Posição física final confirmada** (ver tabela completa em `measurements.md`): RXD(pino 4) e TXD(pino 3) são os dois pads imediatamente adjacentes ao VCC(pino 5), no lado oposto ao GND(pino 7), na mesma fileira de 7 pads sob o módulo.
+
+**Status: pronto para soldar os fios de TXD/RXD e prosseguir para o teste com adaptador USB-serial (CP2102, já confirmado 3,3V nativo).**
+
 **Sessão pausada em 2026-09-05 nesta etapa — retomar por aqui.**
 
 ### Build bem-sucedido (2026-09-05)

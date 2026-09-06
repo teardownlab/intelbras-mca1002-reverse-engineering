@@ -149,7 +149,21 @@ Tabela completa de pinos (1–19):
 | 18 | GND | I | GND |
 | 19 | RESET | I | RESET |
 
-**Nota sobre a contagem física de pads observada em foto (2026-09-06):** o responsável do projeto reportou ver apenas 6 pads na fileira, não 7 como o diagrama prevê. Ainda não resolvido — pode ser um pad obscurecido pela etiqueta do módulo, pino 1 muito próximo do canto arredondado, ou uma diferença real de footprint do REX3B21S vs REX3B21 genérico. **A confirmar por continuidade antes de soldar**, usando VCC (J3-1, já confirmado) como âncora.
+**Atualização — resolvido (2026-09-06):** a fileira tem sim 7 pads; a contagem inicial de 6 foi engano. Foto de perto revelou que a **própria placa tem numeração serigrafada nos pads das extremidades da fileira** ("7" numa ponta, "1" na outra), permitindo posicionamento direto sem depender só de continuidade.
+
+**Posição física confirmada por continuidade + serigrafia**, contando a partir do pad com "7" serigrafado:
+
+| Posição (do topo/"7" para baixo) | Pino | Sinal |
+|---|---|---|
+| 1ª | 7 | GND |
+| 2ª | 6 | PD0 |
+| 3ª | **5** | **VCC** — confirmado por continuidade com J3-1 |
+| **4ª** | **4** | **RXD** |
+| **5ª** | **3** | **TXD** |
+| 6ª | 2 | PC1 |
+| 7ª (base) | 1 | PC0 |
+
+**TXD e RXD identificados fisicamente: RXD é o pad imediatamente abaixo do VCC; TXD é o pad seguinte (dois abaixo do VCC), na direção oposta ao GND.** Pronto para soldar fios definitivos.
 
 ## Próximos testes recomendados
 
