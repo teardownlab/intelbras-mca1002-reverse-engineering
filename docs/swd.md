@@ -342,6 +342,20 @@ Com o mapa de memória minimamente estabelecido (bootloader `0x0`–`0x4000`, ap
 - **Destino:** `C:\Users\guilh\mca1002-backups\` — **fora do Git e fora do OneDrive**, apenas local, porque a região pode conter chaves de rede Zigbee reais (NVM3) se o dispositivo já tiver sido provisionado em alguma rede.
 - **O que é publicado no repositório:** apenas metadados (SHA-256, tamanho, data, faixa de endereços) — nunca o conteúdo bruto do dump. Ver registro em [`experiments.md`](experiments.md).
 
+### Backup realizado — metadados
+
+| Campo | Valor |
+|---|---|
+| Arquivo (local, fora do Git/OneDrive) | `mca1002_efr32_flash_full_2026-09-05.bin` |
+| Localização | `C:\Users\guilh\mca1002-backups\` |
+| Faixa de endereços | `0x00000000`–`0x0007FFFF` (flash principal completa, 512 KB) |
+| Tamanho | 524.288 bytes (512 KB exatos) |
+| SHA-256 | `34b5db7e121351d8139b7d0956bd952314a87d58d9b452728e7dac4f511cf170` |
+| Data | 2026-09-05 |
+| Verificação | primeiros 16 bytes conferidos byte a byte contra leituras SWD anteriores (`mdw 0x00000000 2`) — idênticos |
+
+**Este backup ainda não foi analisado quanto a conteúdo sensível (chaves, credenciais).** Antes de considerar qualquer compartilhamento ou publicação parcial, analisar o conteúdo da região NVM3 (final da flash) especificamente.
+
 ## Próximos passos (somente READ-ONLY / SAFE)
 
 1. ~~Identificar a variante exata do EFR32MG21 e ler DEVINFO~~ — feito parcialmente (ver [`experiments.md`](experiments.md), entrada de leitura de `DEVINFO_PART`/`MEMINFO`/`MSIZE`): endereço base `0x0FE0E000` confirmado no Reference Manual oficial, mas `FAMILY`/`FAMILYNUM`/`MSIZE` deram valores fisicamente implausíveis (SRAM=513KB impossível para este chip). **Não confiar nesses números ainda.** Próxima tentativa: ler `DEVINFO_MODULENAME0..6` (`0x130`-`0x148`, ASCII, 4 chars/word) para identificação direta por texto.
