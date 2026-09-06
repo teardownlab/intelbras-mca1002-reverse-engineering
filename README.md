@@ -3,6 +3,8 @@
 Este repositório documenta a investigação do **Intelbras MCA 1002** para entender sua arquitetura interna e avaliar se o hardware pode ser reaproveitado como gateway/coordenador Zigbee local para **Home Assistant**, preferencialmente com **ZHA** ou **Zigbee2MQTT**.
 
 > **Estado:** investigação em andamento. Nenhum firmware foi substituído até o momento.
+>
+> **Mudança de direção (2026-09-05):** com o firmware original já identificado e com backup completo feito (ver abaixo), o responsável pelo projeto decidiu que **modificar o firmware do EFR32MG21 é aceitável** a partir de agora, com o objetivo concreto de gravar um firmware NCP (EZSP) compatível com ZHA/Zigbee2MQTT, conectado ao servidor Home Assistant via UART/USB. O objetivo de "não substituir firmware" que orientou a fase inicial (identificação de hardware, mapeamento, backup) foi cumprido; a fase atual é de desenvolvimento/gravação de firmware. Backup completo do firmware original já existe localmente antes de qualquer gravação.
 
 ## Objetivo
 
