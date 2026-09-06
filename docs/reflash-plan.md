@@ -27,13 +27,72 @@ O firmware original (Rexense, `REXENSE_HA_COO_Stk6710_MG215_1.7.3`) implementa u
 
 | Etapa | Status |
 |---|---|
-| 1. Confirmar variante exata do chip | INFERRED como `EFR32MG21A020F512IM32` (512 KB flash, 96 KB RAM) — o link do firmware coube exatamente dentro do orçamento de RAM desse chip (ver abaixo), o que é uma confirmação indireta forte |
+| 1. Confirmar variante exata do chip | **CONFIRMED definitivamente** — `EFR32MG21A020, rev 47`, flash 512 KiB, page size 8192 B, via `flash probe` do OpenOCD (driver oficial Silicon Labs) |
 | 2. Toolchain headless (SLT) | **Concluído** — GSDK 2026.6.1, slc-cli 6.0.23, gcc-arm-none-eabi 14.2, LLVM embedded 21.1, CMake, Ninja, Commander, zap, tudo instalado via `slt install` |
 | 3. Gerar projeto NCP-UART-HW customizado | **Concluído** — `iostream_usart` (instância `vcom`) configurado com USART0, TX=PA5, RX=PA6, sem controle de fluxo (2 fios) |
-| 4. Compilar | **Concluído com sucesso** — ver detalhes abaixo |
-| 5. Confirmar pinos PA5/PA6 fisicamente | Não iniciado |
-| 6. Gravar via SWD | Não iniciado — aguarda confirmação explícita quando chegar a hora |
-| 7. Testar com Z2M/ZHA | Não iniciado |
+| 4. Compilar | **Concluído com sucesso** |
+| 5. Confirmar pinos PA5/PA6 fisicamente | Ainda não feito — próximo passo antes de testar via USB |
+| 6. Gravar via SWD | **CONCLUÍDO com sucesso em 2026-09-05** — ver detalhes abaixo |
+| 7. Testar com Z2M/ZHA | Não iniciado — depende da etapa 5 |
+
+## Gravação realizada (2026-09-05)
+
+### Problema encontrado: driver de flash do OpenOCD 0.12.0 não suportava Series 2
+
+A versão do OpenOCD instalada anteriormente (xpack 0.12.0) tem um driver `efm32` sem a tabela de famílias do Series 2 (`Unknown MCU family 128`). Encontrado um **script oficial e atual da própria Silicon Labs** no repositório oficial do OpenOCD (`tcl/target/silabs/series2.cfg` e `xg21.cfg`, copyright 2026 Silicon Laboratories Inc.) — esse script já implementa exatamente o protocolo DCI que reconstruímos manualmente antes (validação cruzada com nosso trabalho anterior). Só que ele exige uma versão mais nova do binário do OpenOCD (com suporte a `family 128` no driver `efm32`).
+
+Baixado um build "nightly" oficial do próprio repositório `openocd-org/openocd` (release tag `latest`, commit `ddb476b`, compilado 2026-09-04) que já inclui esse suporte.
+
+### Confirmação definitiva do chip (READ-ONLY, antes de gravar)
+
+Comando: `flash probe 0` (via `target/silabs/xg21.cfg`, que já define `FLASHBASE=0x00000000` corretamente para xG21/xG22).
+
+```text
+Info : detected part: EFR32MG21 A020, rev 47
+Info : flash size = 512 KiB
+Info : flash page size = 8192 B
+```
+
+**Isso resolve definitivamente a ambiguidade da DEVINFO** que ficou em aberto durante a investigação: o chip é `EFR32MG21A020`, revisão de silício 47, com 512 KiB de flash — exatamente a variante usada para compilar nosso firmware. Também explica por que os campos legados de `DEVINFO_PART`/`MSIZE` liam valores estranhos: esse driver lê a família por um byte em endereço diferente (`0x0FE081FE`, compatível com todas as séries) do que os campos "modernos" de `DEVINFO_PART` que líamos antes (`0x0FE0E004`) — a Rexense aparentemente não popula esses campos modernos, mas o campo legado está correto.
+
+### Gravação
+
+Comando (**POTENCIALMENTE DESTRUTIVO** — autorizado explicitamente pelo responsável do projeto, com backup completo do firmware original já salvo e verificado por hash antes desta etapa):
+
+```tcl
+program zigbee_ncp_uart_hw.hex verify reset exit
+```
+
+Resultado:
+
+```text
+** Programming Started **
+Info : detected part: EFR32MG21 A020, rev 47
+Info : flash size = 512 KiB
+Info : flash page size = 8192 B
+Info : Padding image section 0 at 0x00004234 with 4 bytes
+** Programming Finished **
+** Verify Started **
+** Verified OK **
+** Resetting Target **
+```
+
+**A imagem compilada começa em `0x00004000`** (mesma região onde ficava a aplicação Zigbee original) — ou seja, a gravação **substituiu apenas a região de aplicação**, preservando intacto o Gecko Bootloader original da Rexense em `0x0000`–`0x4000`. Nenhuma outra região da flash foi tocada.
+
+### Verificação pós-gravação (READ-ONLY)
+
+```tcl
+mdw 0x00004000 16
+```
+
+```text
+0x00004000: 20001008 0000423b 0002956d 00004239 00004239 00029575 0002957d 00004239
+0x00004020: 00004239 00004239 00004239 00004239 00029581 00033978 00004239 00004239
+```
+
+Vetor de interrupções completamente diferente do original (SP e handlers mudaram) — **confirma que o novo firmware NCP está gravado e o chip reiniciou nele com sucesso**.
+
+**Status:** o EFR32MG21 agora roda firmware NCP EZSP oficial da Silicon Labs (`zigbee_ncp_uart_hw`), com UART configurado em PA5(TX)/PA6(RX), pronto para ser testado como coordenador Zigbee via ZHA/Zigbee2MQTT assim que a conexão física USB-serial for estabelecida (etapa 5, ainda pendente).
 
 ### Build bem-sucedido (2026-09-05)
 

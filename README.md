@@ -241,11 +241,21 @@ Dois caminhos possíveis a partir daqui:
 
 Detalhes completos da análise em [`docs/experiments.md`](docs/experiments.md).
 
+## Atualização (2026-09-05): firmware reescrito, EFR32MG21 agora roda EZSP oficial
+
+O responsável pelo projeto decidiu modificar o firmware (deixando de lado a restrição inicial de "não substituir firmware", já cumprida: identificação completa + backup íntegro feitos antes de qualquer alteração). Resultado:
+
+- **Chip definitivamente identificado**: `EFR32MG21A020`, revisão de silício 47, flash de **512 KiB** — confirmado pelo driver oficial de flash do OpenOCD (`flash probe`), resolvendo a ambiguidade da DEVINFO.
+- Montado um toolchain headless completo (Silicon Labs Tool + GSDK 2026.6.1 + gcc-arm-none-eabi) sem precisar da IDE Simplicity Studio.
+- Compilado um firmware **NCP UART HW** oficial da Silicon Labs (EZSP padrão, compatível com ZHA/Zigbee2MQTT), com UART configurado em **PA5(TX)/PA6(RX)** — os mesmos pinos que o firmware original já usava.
+- **Gravado via SWD com sucesso** (OpenOCD + script oficial `target/silabs/xg21.cfg`), substituindo apenas a região de aplicação (`0x4000`+) e preservando o Gecko Bootloader original intacto.
+- Backup completo do firmware original preservado localmente (SHA-256 verificado) antes da gravação.
+
+Detalhes completos, comandos exatos e saídas em [`docs/reflash-plan.md`](docs/reflash-plan.md).
+
 ## Próximo passo
 
-Decisão em aberto: seguir com engenharia reversa do protocolo AT/UART (próximo passo técnico seria captura passiva de tráfego UART real, usando os pinos PA5/TXD e PA6/RXD do REX3B21S, ainda não testados por continuidade) ou considerar reflash mais adiante. Também em aberto, com prioridade menor: confirmar tamanho real da flash (hoje INFERRED como 512 KB), localizar dados NVM3 reais, e identificar o módulo RE761-N4P.
-
-Nenhuma operação destrutiva (erase, write, unlock, recover) será feita nesta etapa.
+Confirmar fisicamente o acesso aos pinos PA5(TX)/PA6(RX) do REX3B21S na placa do MCA 1002 (teste de continuidade, como fizemos com J3), para então conectar um adaptador USB-serial e testar o coordenador com Zigbee2MQTT ou ZHA. Com prioridade menor: identificar o módulo RE761-N4P e localizar dados NVM3 reais (menos relevante agora que o firmware foi substituído por um EZSP limpo).
 
 ## Referências
 
