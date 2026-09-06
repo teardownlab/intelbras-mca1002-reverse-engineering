@@ -110,6 +110,47 @@ A documentação do REX3B21 indica os seguintes sinais relevantes no módulo:
 
 As medições de continuidade confirmam que J3 expõe diretamente VCC, GND, RESET, SWDIO e SWCLK.
 
+### Pinout completo oficial (2026-09-06)
+
+Obtido do manual oficial da Rexense ("REXENSE REX3B21 Low-Power Zigbee Module User Manual", via `manuals.plus`, seções "Pin Configuration"/"Pin Definition"/"Pin Description"). Confirma e complementa as medições de continuidade acima — os 5 pinos já medidos (5, 7, 15, 17, 19) batem exatamente com o diagrama oficial, o que valida usar o restante do diagrama com confiança.
+
+**Distribuição física por borda do módulo** (vista de cima, conforme diagrama "Pin Definition" do fabricante):
+
+| Borda | Pinos (em ordem física) |
+|---|---|
+| **Inferior** (7 pinos) | 1=PC0, 2=PC1, **3=PA5/TXD**, **4=PA6/RXD**, **5=VCC**, 6=PD0, **7=GND** |
+| Esquerda (6 pinos, de baixo pra cima) | 8=PD1, 9=PD2, 10=PA4, 11=PA3, 12=PA0, 13=PB1 |
+| Direita (6 pinos, de cima pra baixo) | **19=RESET**, **18=GND**, **17=PA2/SWDIO**, 16=PC5, **15=PA1/SWCLK**, 14=PC4 |
+| Superior | sem pinos — área da antena PCB |
+
+**Achado importante:** os pinos **TXD(3) e RXD(4) ficam na MESMA borda que VCC(5) e GND(7)** — a borda inferior, com 7 posições ao todo: `PC0, PC1, TXD, RXD, VCC, PD0, GND`. Ou seja, a partir do pad de VCC (já confirmado por continuidade = J3-1), o pad **imediatamente adjacente, na direção OPOSTA ao GND**, é **RXD**; o pad **seguinte** (mais um passo na mesma direção) é **TXD**.
+
+Tabela completa de pinos (1–19):
+
+| Pino | Sinal | Direção | Função |
+|---|---|---|---|
+| 1 | PC0 | I/O | GPIO |
+| 2 | PC1 | I/O | GPIO |
+| 3 | PA5 | I/O | GPIO; **TXD** |
+| 4 | PA6 | I/O | GPIO; **RXD** |
+| 5 | 3,3V | I | **VCC** |
+| 6 | PD0 | I/O | GPIO |
+| 7 | GND | I | **GND** |
+| 8 | PD1 | I/O | GPIO |
+| 9 | PD2 | I/O | GPIO |
+| 10 | PA4 | I/O | GPIO |
+| 11 | PA3 | I/O | GPIO |
+| 12 | PA0 | I/O | GPIO |
+| 13 | PB1 | I/O | GPIO |
+| 14 | PC4 | I/O | GPIO |
+| 15 | PA1 | I/O | GPIO; **SWCLK** |
+| 16 | PC5 | I/O | GPIO |
+| 17 | PA2 | I/O | GPIO; **SWDIO** |
+| 18 | GND | I | GND |
+| 19 | RESET | I | RESET |
+
+**Nota sobre a contagem física de pads observada em foto (2026-09-06):** o responsável do projeto reportou ver apenas 6 pads na fileira, não 7 como o diagrama prevê. Ainda não resolvido — pode ser um pad obscurecido pela etiqueta do módulo, pino 1 muito próximo do canto arredondado, ou uma diferença real de footprint do REX3B21S vs REX3B21 genérico. **A confirmar por continuidade antes de soldar**, usando VCC (J3-1, já confirmado) como âncora.
+
 ## Próximos testes recomendados
 
 1. **Não gravar firmware ainda.**

@@ -51,6 +51,8 @@ Versão em uso neste projeto: xPack OpenOCD `0.12.0+dev-02228-ge5888bda3-dirty` 
 
 Observação: os documentos encontrados são para a família **REX3B**/REX3B21; o módulo físico identificado no MCA 1002 traz a marcação **REX3B21S**. Tratar como o mesmo SoC/plataforma (EFR32MG21) até que uma diferença específica seja encontrada, mas não presumir que o pinout do datasheet do REX3B genérico é idêntico sem conferir contra as medições de continuidade já feitas (ver [`measurements.md`](measurements.md)).
 
+**Atualização (2026-09-06):** o manual oficial da Rexense (link acima, acessado com sucesso) traz o diagrama completo de pinout (1–19) do REX3B21. Os 5 pinos já confirmados por continuidade neste projeto (5=VCC, 7=GND, 15=SWCLK, 17=SWDIO, 19=RESET) batem exatamente com esse diagrama — forte validação de que o REX3B21S usa o mesmo pinout. Tabela completa transcrita em [`measurements.md`](measurements.md). FCC ID correto do REX3B21 é **2AOE2-REX3B21** (não confundir com `2AOE2-REX3B`, que é de um módulo antecessor/diferente).
+
 ## Módulo secundário RE761-N4P
 
 **Nenhuma fonte oficial encontrada até agora.** Buscas iniciais por "RE761-N4P" não retornaram datasheet, FCC filing nem página de fabricante. Este item permanece **UNKNOWN** — ver [`hardware.md`](hardware.md) para os próximos passos de identificação sugeridos (busca por FCC ID na própria PCB, fotos em alta resolução do módulo).
