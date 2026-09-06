@@ -94,6 +94,36 @@ Vetor de interrupções completamente diferente do original (SP e handlers mudar
 
 **Status:** o EFR32MG21 agora roda firmware NCP EZSP oficial da Silicon Labs (`zigbee_ncp_uart_hw`), com UART configurado em PA5(TX)/PA6(RX), pronto para ser testado como coordenador Zigbee via ZHA/Zigbee2MQTT assim que a conexão física USB-serial for estabelecida (etapa 5, ainda pendente).
 
+## Etapa 5 em andamento — achados físicos por foto (2026-09-05)
+
+O responsável do projeto enviou fotos da placa aberta. Achados:
+
+- **J3 tem serigrafia "ZIGBEE_DEBUG"** — confirma nome oficial do header SWD já em uso.
+- **Novo header descoberto: "WIFI_DEBUG"**, perto do parafuso H3, com 4 pads pequenos oxidados/corroídos, não populados. Candidato a debug/UART do lado Wi-Fi/MCU principal (chip com marcação parcial "...0310"). Ainda não testado — pode ou não ser o mesmo barramento UART que vai para o módulo Zigbee (se for o mesmo, gravar direto lá exigiria isolar o chip Wi-Fi para evitar contenção de barramento).
+- **Pergunta em aberto:** há uma peça com etiqueta idêntica à do REX3B21S (mesmo `Date:20240805`, `Code:1.2.21.99.10232`) perto dos pontos de teste **H2/ID1**, com seu próprio cabo coaxial de antena. Ainda não confirmado se é um **segundo módulo Zigbee separado** ou o mesmo módulo fotografado de outro ângulo. **Perguntado ao responsável do projeto, resposta pendente.**
+- O responsável já soldou fios permanentes em **J3-1 (VCC/pino 5)** e **J3-6** (sinal ainda desconhecido) para facilitar acesso.
+
+### Plano para localizar TXD(pino 3)/RXD(pino 4) fisicamente
+
+Usando VCC(pino 5)=J3-1 e GND(pino 7)=J3-2 (já confirmados por continuidade) como âncoras na mesma fileira de 7 pads castelados do módulo:
+
+- Pad imediatamente ao lado do VCC, na direção **oposta** ao GND → **RXD (pino 4)**.
+- Pad duas posições nessa mesma direção → **TXD (pino 3)**.
+
+A confirmar por continuidade (placa desligada) antes de soldar fios definitivos — ainda não confirmado, é a próxima ação pendente.
+
+### Depois de identificar TXD/RXD (checklist combinado com o usuário)
+
+1. Testar continuidade e confirmar TXD(3)/RXD(4) fisicamente (pendente).
+2. Soldar 3 fios: TXD, RXD, GND.
+3. Obter adaptador USB-serial de **3,3 V** (não 5V).
+4. Conectar cruzado: TXD(módulo)→RX(adaptador), RXD(módulo)→TX(adaptador), GND→GND. **Não conectar VCC do adaptador** — a placa já é alimentada pela própria fonte.
+5. Plugar no servidor, identificar a porta serial.
+6. Configurar Zigbee2MQTT (driver `ember`) ou ZHA (`bellows`) apontando para essa porta, baud rate **115200** (definido no firmware).
+7. Testar pareamento de dispositivos Zigbee reais.
+
+**Sessão pausada em 2026-09-05 nesta etapa — retomar por aqui.**
+
 ### Build bem-sucedido (2026-09-05)
 
 ```
