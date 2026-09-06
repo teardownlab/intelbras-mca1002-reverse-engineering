@@ -27,13 +27,19 @@ O firmware original (Rexense, `REXENSE_HA_COO_Stk6710_MG215_1.7.3`) implementa u
 
 | Etapa | Status |
 |---|---|
-| 1. Confirmar variante exata do chip | Em andamento |
-| 2. Toolchain headless (SLT) | Em andamento — `slt-cli` baixado e funcional; `slt install` rodando |
-| 3. Gerar projeto NCP-UART-HW customizado | Não iniciado |
+| 1. Confirmar variante exata do chip | INFERRED como `EFR32MG21A020F512IM32` (512 KB flash) — usada para gerar o projeto; ainda não 100% CONFIRMED contra a placa real |
+| 2. Toolchain headless (SLT) | **Concluído** — GSDK 2026.6.1, slc-cli 6.0.23, gcc-arm-none-eabi 14.2, LLVM embedded 21.1, CMake, Ninja, Commander, zap, tudo instalado via `slt install` |
+| 3. Gerar projeto NCP-UART-HW customizado | **Projeto gerado** (`zigbee_ncp_uart_hw_mca1002`), mas com iostream padrão errado para nosso caso (ver nota abaixo) — falta ajustar pinos |
 | 4. Compilar | Não iniciado |
 | 5. Confirmar pinos PA5/PA6 fisicamente | Não iniciado |
 | 6. Gravar via SWD | Não iniciado — aguarda confirmação explícita quando chegar a hora |
 | 7. Testar com Z2M/ZHA | Não iniciado |
+
+### Nota técnica: como o ASH/EZSP escolhe o UART físico
+
+Investigando o código-fonte do componente `legacy_ncp_ash` (`ash-ncp.c`), descobri que o canal serial real usado pelo ASH/EZSP no NCP é determinado pela macro `ASH_PORT`, que por sua vez deriva do **iostream "VCOM"** configurado no projeto (`SL_CATALOG_IOSTREAM_USART_PRESENT`/`_EUSART_PRESENT` + `sl_iostream_usart_vcom_config.h`). Como geramos o projeto sem uma placa (`board`), o `slc generate` escolheu por padrão o componente `iostream_vuart` (UART virtual sobre o canal de debug/SWD, **não é um UART físico real**) — isso não serve pro nosso caso, que precisa de um UART físico de verdade (PA5/PA6) para conectar um adaptador USB-serial.
+
+**Próxima ação:** trocar o componente `iostream_vuart` por `iostream_usart` (instância "vcom"), e configurar `SL_IOSTREAM_USART_VCOM_TX_PORT/PIN` e `_RX_PORT/PIN` para `PA5`/`PA6`, além de desabilitar controle de fluxo por hardware (CTS/RTS) já que o módulo documentado só expõe TXD/RXD (2 fios).
 
 ## Ferramentas instaladas nesta fase
 
