@@ -660,3 +660,46 @@ Pesquisa web por `"TurismoE"` (isolado e combinado com Dahua/IMOU/BT/WiFi) não 
 **Status:** CONFIRMED — string exata `TurismoE 6020B SoC` presente no firmware. UNKNOWN — a qual fabricante/part number real essa string corresponde.
 
 **Próximo passo sugerido:** ao pesquisar FCC ID / certificação do RE761-N4P (já sugerido anteriormente), usar também `TurismoE` e `6020B` como termos de busca adicionais — pode aparecer em datasheets vazados, fóruns de teardown de outros produtos Dahua/IMOU, ou repositórios de firmware de terceiros.
+
+## Descoberta do console de comandos + identificação do RE761-N4P como (provável) Bouffalo Lab BL808 (2026-09-07)
+
+Seguindo a captura de boot bem-sucedida em J1-2 (TX), testamos se J1 tinha um pino de RX pra console interativo. Fiação: J1-2→RXD adaptador (já confirmado), **J1-1→TXD adaptador (novo)**, GND dedicado. Script PowerShell que escuta e envia simultaneamente (`serial_probe.ps1`/`serial_probe2.ps1`, scratchpad da sessão) usado para testar comandos sem depender do usuário digitar manualmente.
+
+**J1-1 = RX do RE761-N4P: CONFIRMED.** Existe um console de comandos ativo (prompt `?>`), mesma UART do log de boot, 115200 8N1.
+
+Comando `?` lista o menu público:
+```
+Custom Cmd Usage:
+meminfo             meminfo
+sysinfo             sysinfo
+cmd_log             test command
+cmd_tag             test command
+cmd_show            test command
+```
+
+`meminfo` e `sysinfo` executam sem senha e devolveram dados técnicos valiosos:
+
+```
+total SRAM: 512K
+...
+psram not exist
+```
+```
+[System information]
+mcu clk 480000000
+info ICache Enable, DCache Enable
+xtal clk 26000000, bus clk 160000000, xip mode 2
+[Task information]
+Name             Priority ...
+ isr / cli / IDLE / Tmr Svc / Radio_Receive_T / Radio_Tx_Task / tcpip_task /
+ WdtIdle / comTask / VoicePlay / msgDealPool / ZigbeeComm / SmartLink /
+ sta connect tas / scan task
+```
+
+Tentativas de comandos não-whitelisted (`help`, `ps`, `version`, `AT`, `AT+VER`) e de senhas óbvias (`admin`, `12345678`, `888888`, `password`, `1234`, `0000`, número de série do produto) não tiveram efeito claro — um bloco `[password]:password is wrong / Enter the password,Please` aparece no log, mas com timing que não bate de forma confiável com cada tentativa específica; hipótese não confirmada de que seja ruído de outro subsistema (ex.: provisionamento BLE) na mesma UART compartilhada, não uma resposta real ao nosso console.
+
+**Identificação do SoC — hipótese forte via fingerprint técnico:** `mcu clk 480000000` + rádios WiFi/BT/BLE/Zigbee integrados + SRAM na faixa observada batem com as especificações públicas do **Bouffalo Lab BL808** (core M0 de alto desempenho roda a 480MHz nesse chip; die tem 728KB SRAM total distribuído entre 3 cores; suporta Wi-Fi/BT/BLE/Zigbee 802.15.4 nativo). BL808 é usado publicamente na placa Pine64 Ox64, tem SDK open-source (`bouffalolab/bouffalo_sdk` no GitHub), datasheet/reference manual públicos, e ferramenta de gravação via UART ISP open-source (`bflb-mcu-tool`). Detalhes completos e tabela de comparação em [`hardware.md`](hardware.md).
+
+**Bloqueio identificado para o próximo passo (entrar em modo bootloader ROM/ISP):** o BL808 entra em modo de download UART segurando um pino de **BOOT** (strap) durante reset/power-on. Não sabemos ainda qual pino físico do módulo RE761-N4P (que é um módulo customizado, não uma dev board oficial Bouffalo — pinout não é público) corresponde a esse strap, nem confirmamos um pino de RESET. Duas frentes possíveis daqui pra frente: (a) tentar mapear por eliminação usando os pads já acessíveis em J1/J2, ou (b) continuar explorando o console de comandos por software (ex.: tentar descobrir a senha do modo privilegiado, que pode ter comandos de reboot-to-bootloader ou leitura de flash direta, sem necessidade de acesso físico novo).
+
+**Status:** CONFIRMED — J1-1 é RX, console de comandos existe e funciona (`meminfo`/`sysinfo`/etc). INFERRED (alta confiança) — SoC é Bouffalo Lab BL808 ou variante próxima. UNKNOWN — pino de BOOT strap e RESET do RE761-N4P; se o bloco de senha observado é real ou ruído de outro subsistema.

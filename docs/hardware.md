@@ -63,6 +63,7 @@ Status do SoC/fabricante do silício: **candidato encontrado** (nome de codinome
 | Marcação serigráfica | RE761-N4P (SN: NMPB00300310) | CONFIRMED |
 | Fabricante do silício | — | UNKNOWN |
 | SoC interno (codinome de boot) | `TurismoE 6020B` (string `"< TurismoE 6020B SoC BT1M Rx DC calibration...done"`, confirmada byte-a-byte em captura de 2026-09-07) | CONFIRMED a string; UNKNOWN o mapeamento para fabricante/part number real — sem resultado em busca web (`TurismoE` não é nome público de nenhum fabricante conhecido; provavelmente codinome interno do fornecedor de silício pra Dahua/IMOU) |
+| SoC interno (hipótese por fingerprint técnico) | **Bouffalo Lab BL808** (ou variante próxima da mesma família) | INFERRED, alta confiança — ver justificativa abaixo. NÃO CONFIRMED ainda (falta leitura de chip ID real via bootloader ROM) |
 | Função na placa | Controlador Wi-Fi / gateway principal (roda a stack de aplicação do hub, fala com REX3B21 via UART e com a nuvem via Wi-Fi) | CONFIRMED |
 | Firmware | Baseado em SDK/framework **Dahua/IMOU** (símbolos `IMOU_sysEnvRead`, `IMOU_sceneLinkage`, `ZigbeeAdapt_Rex.c`) | CONFIRMED |
 | Build identificado | `Project Name: GateWay`, `PackName: General_GateWay_IOT-ZG2-IB_SV32WB0X_V2.4.628243.R.26014`, `Build File: product.gw-ZG2-IB.svr32wbx.cfg`, `Git Commit: 7f9a6ef6f` | CONFIRMED (string de boot, texto claro) |
@@ -81,7 +82,38 @@ Interface física confirmada (numeração do header **J1: pino 1 a 4, contado de
 | Header/pino | Função | Status |
 |---|---|---|
 | J1 pino 2 | TX do RE761-N4P (saída, 115200 8N1) | CONFIRMED (2026-09-07, captura de boot completa via UART) |
-| J1 (demais pinos) | não testados individualmente após a renumeração acima | UNKNOWN |
+| J1 pino 1 | RX do RE761-N4P (entrada — console de comandos aceita entrada aqui) | CONFIRMED (2026-09-07, ver seção de console abaixo) |
+| J1 (pinos 3 e 4) | não testados | UNKNOWN |
+
+### Console de comandos via UART (CONFIRMED, 2026-09-07)
+
+Com J1-1 (RX) + J1-2 (TX) + GND dedicado ligados a um adaptador USB-TTL, existe um **console de comandos interativo** na mesma UART do log de boot, 115200 8N1. Comandos testados sem necessidade de senha (prompt `?>`):
+
+| Comando | Resultado |
+|---|---|
+| `?` | Lista comandos: `meminfo`, `sysinfo`, `cmd_log`, `cmd_tag`, `cmd_show` |
+| `meminfo` | `total SRAM: 512K` + tabela de uso ILM/DLM/Bus, `psram not exist` |
+| `sysinfo` | `mcu clk 480000000`, `xtal clk 26000000`, `bus clk 160000000`, `xip mode 2`, lista de tasks RTOS (`isr`, `cli`, `IDLE`, `Tmr Svc`, `Radio_Receive_T`, `Radio_Tx_Task`, `tcpip_task`, `WdtIdle`, `comTask`, `VoicePlay`, `msgDealPool`, `ZigbeeComm`, `SmartLink`, `sta connect tas`, `scan task`) |
+| `cmd_log` / `cmd_tag` / `cmd_show` | Comandos de teste/debug de log, funcionais mas de baixo valor de identificação |
+
+Qualquer outro comando (`help`, `ps`, `version`, `AT`, tentativas de senha `admin`/`12345678`/`888888`/`password`/`1234`/`0000`/número de série) aparenta ser silenciosamente ignorado. Um bloco `[password]:password is wrong / Enter the password,Please` aparece intercalado no log, mas com timing inconsistente com os comandos enviados — hipótese: é ruído de um subsistema não relacionado (ex.: provisionamento BLE) escrevendo na mesma UART compartilhada, não uma resposta real às nossas tentativas. Não confirmado.
+
+### Hipótese de identificação do SoC: Bouffalo Lab BL808
+
+Fingerprint técnico do `sysinfo` bate com as especificações públicas do **Bouffalo Lab BL808** (chip RISC-V multi-core, Wi-Fi/BT/BLE/Zigbee integrado, usado por ex. na placa Pine64 Ox64):
+
+| Característica observada | BL808 (datasheet público) | Bate? |
+|---|---|---|
+| Clock do core principal | 480MHz | Core de alto desempenho (M0) do BL808 roda a 480MHz | Sim |
+| SRAM | 512K (nossa partição/contexto) | 728KB de SRAM total no die, particionado entre os 3 cores — 512K num core individual é plausível | Compatível |
+| Rádios integrados | WiFi + BT + BLE (+ Zigbee via stack própria, mas delegado ao REX3B21 neste produto) | WiFi/BT/BLE/Zigbee nativo (802.15.4) | Compatível (fabricante pode optar por não usar o rádio Zigbee nativo) |
+| PSRAM | "psram not exist" | BL808 suporta até 64MB de pSRAM externo, opcional — ausência é uma opção de design, não contradiz | Compatível |
+
+**Se confirmado**, isso é uma virada de jogo pro objetivo do projeto: BL808 tem **SDK open-source** (`bouffalo_sdk` no GitHub), datasheet e reference manual públicos, comunidade ativa (OpenBouffalo, projeto Ox64/Pine64), e ferramenta de gravação aberta (`bflb-mcu-tool`) que fala com o bootloader ROM via UART.
+
+**Modo de entrada no bootloader ROM (ISP via UART), conforme documentação pública do BL808:** segurar um pino de **BOOT** (strap) durante poder-ligar ou pulsar **RESET**, então a ROM entra em modo de download UART, respondendo ao `bflb-mcu-tool`. **Bloqueio atual:** não identificamos ainda (a) qual pino físico do módulo RE761-N4P corresponde ao strap de BOOT do BL808, nem (b) um pino de RESET confirmado — o pinout exato do módulo (não é uma placa de desenvolvimento oficial Bouffalo, é um módulo customizado da Dahua/fornecedor) não é público. Descobrir isso exigiria continuidade elétrica sob a blindagem metálica (ver pergunta em aberto sobre remoção da capa) ou tentativa por eliminação nos pads já mapeados em J1/J2.
+
+**Status:** INFERRED com alta confiança (fingerprint técnico) — NÃO CONFIRMED. Confirmação definitiva viria de uma leitura de Chip ID bem-sucedida via `bflb-mcu-tool` em modo ISP.
 | J2 | suspeitos anteriores (pad 35/pad 8 do chip) não re-confirmados com a numeração corrigida | UNKNOWN — revisar |
 
 Próximos passos de identificação sugeridos (não executados ainda):
