@@ -703,3 +703,13 @@ Tentativas de comandos não-whitelisted (`help`, `ps`, `version`, `AT`, `AT+VER`
 **Bloqueio identificado para o próximo passo (entrar em modo bootloader ROM/ISP):** o BL808 entra em modo de download UART segurando um pino de **BOOT** (strap) durante reset/power-on. Não sabemos ainda qual pino físico do módulo RE761-N4P (que é um módulo customizado, não uma dev board oficial Bouffalo — pinout não é público) corresponde a esse strap, nem confirmamos um pino de RESET. Duas frentes possíveis daqui pra frente: (a) tentar mapear por eliminação usando os pads já acessíveis em J1/J2, ou (b) continuar explorando o console de comandos por software (ex.: tentar descobrir a senha do modo privilegiado, que pode ter comandos de reboot-to-bootloader ou leitura de flash direta, sem necessidade de acesso físico novo).
 
 **Status:** CONFIRMED — J1-1 é RX, console de comandos existe e funciona (`meminfo`/`sysinfo`/etc). INFERRED (alta confiança) — SoC é Bouffalo Lab BL808 ou variante próxima. UNKNOWN — pino de BOOT strap e RESET do RE761-N4P; se o bloco de senha observado é real ou ruído de outro subsistema.
+
+## Tentativas de senha do console privilegiado — sem sucesso (2026-09-07)
+
+Confirmado por teste de controle (60s escutando sem enviar nada — zero ocorrências do bloco de senha) que o prompt `[password]:password is wrong / Enter the password,Please` é uma **reação real** a qualquer linha não-vazia que não bata com os comandos públicos (`meminfo`/`sysinfo`/`cmd_log`/`cmd_tag`/`cmd_show`) nem com a senha real — não é ruído de outro subsistema.
+
+Tentativas sem sucesso (todas retornaram "password is wrong"): `help`, `ps`, `version`, `AT`, `AT+VER`, `admin`, `12345678`, `888888`, `password`, `1234`, `0000`, número de série (`AEBM3200273NG`), MAC sem separadores (`982A0AD2CC7B`), `pid` do produto (`sqNzDUSq`), hash do git commit (`7f9a6ef6f`), `bl808`, `GateWay`, `666666`, `imou123`, `dahua123`.
+
+**Status:** CONFIRMED — bloco de senha é reativo, não ruído. UNKNOWN — a senha real; busca por engenharia reversa de string/algoritmo (não por tentativa cega) é o caminho mais produtivo daqui pra frente — ex.: decompilar o app Mibo/Intelbras (que provavelmente calcula ou conhece essa senha para modo de engenharia/fábrica) em vez de continuar advinhando.
+
+**Próximo passo sugerido:** analisar o APK do app Mibo/Intelbras (decompilação, procurar strings/algoritmos relacionados a senha de debug UART, "engineer mode", ou geração de senha a partir de MAC/SN) — decisão pendente do responsável do projeto sobre se vale investir nisso agora.
