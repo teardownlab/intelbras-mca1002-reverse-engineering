@@ -114,3 +114,21 @@ Os subcampos ficam acessíveis como chaves `"{subId_hi}_{subId_lo}"` → valor (
 Mesmo com o protocolo completo mapeado, **ainda não conseguimos conectar via BLE ao MCA1002 de forma programática** (nem via `bleak`/Python no PC, nem via configurações nativas do Bluetooth do Windows, nem via um app scanner BLE genérico no celular Android do usuário) — apesar do firmware confirmar que o advertising inicia (`SSV_GAP_BLE_ADV_START_COMPLETE_EVT`) e do **app oficial Mibo conseguir parear normalmente** no mesmo celular. Isso sugere que o app usa algum mecanismo de descoberta mais específico que uma varredura BLE genérica não replica (ex.: filtro por manufacturer data específico, ou até Bluetooth clássico/SPP em paralelo ao BLE) — **não determinado ainda**.
 
 **Próximo passo sugerido:** capturar o tráfego BLE real entre o celular Android e o MCA1002 durante um pareamento pelo app oficial, usando o recurso nativo do Android **"HCI snoop log"** (Opções de desenvolvedor → "Ativar log de snoop Bluetooth HCI"), depois analisar o arquivo `.cfa`/`.pklg` gerado no Wireshark. Isso revelaria exatamente como o app descobre e conecta ao dispositivo, e permitiria confirmar/corrigir os detalhes do protocolo acima com tráfego real capturado, sem depender só da leitura do código-fonte decompilado.
+
+## Descoberta: o app conecta direto por endereço, sem scan (2026-09-07)
+
+Via `adb bugreport` + `dumpsys bluetooth_manager` durante um pareamento real feito pelo app oficial no celular Android do usuário, confirmado no log:
+
+```
+BtGatt.GattService clientConnect(br.com.intelbras.mibocam...)(address=D2:C)(isDirect=true)...
+[...] (03::98:2A:0A:D2:CC:XX)
+...CONNECTED    98:2a:0a:d2:cc:7c
+```
+
+O app **não faz descoberta/scan genérico** — ele chama `connectGatt()` **diretamente** com o endereço MAC já conhecido (`98:2a:0a:d2:cc:7c`, o mesmo MAC BLE visto nos logs de boot via UART) e `isDirect=true`. Isso explica por que nenhuma tentativa de scan genérico (via `bleak`/Python, Bluetooth nativo do Windows, ou app scanner BLE no celular) conseguiu enxergar o dispositivo: conexão direta por endereço conhecido é uma operação BLE de baixo nível diferente de "listar dispositivos por perto", e o Android permite isso mesmo sem descoberta prévia.
+
+**Tentativa de replicar isso via `bleak` no Windows falhou:** `BleakClient(ADDR).connect()` retornou `BleakDeviceNotFoundError` — o backend WinRT do Windows exige que o dispositivo já tenha sido "visto" via um mecanismo de descoberta/anúncio interno do próprio SO antes de permitir conexão direta por endereço, ao contrário do `android.bluetooth.BluetoothGatt.connectGatt(address, autoConnect=false)` usado pelo app. Isso é uma limitação da pilha Bluetooth do Windows/WinRT (ou do bleak especificamente), não do protocolo do dispositivo em si.
+
+**Status:** CONFIRMED — mecanismo de conexão do app é `connectGatt` direto por MAC, não scan. CONFIRMED — essa abordagem não funciona via `bleak`/Windows nesta configuração. UNKNOWN — como o app originalmente obtém esse MAC BLE antes da primeira conexão (possivelmente via alguma etapa anterior de descoberta por WiFi/SoftAP, ou o MAC é derivado deterministicamente do SN/pid do produto — nota: o MAC BLE (`...cc:7c`) e o MAC WiFi (`...cc:7b`) diferem só no último byte, sugerindo derivação sequencial a partir de um MAC base único do dispositivo, potencialmente previsível).
+
+**Próximo passo sugerido:** executar o cliente do protocolo (handshake ECDH+AES documentado acima) rodando **no próprio Android** (não no PC) — via um app dedicado (ex.: escrever um app mínimo, ou usar uma ferramenta de automação BLE Android como nRF Connect combinada com scripts externos para o cálculo criptográfico) — já que `android.bluetooth.BluetoothGatt` no próprio aparelho permite a mesma conexão direta que o app oficial usa.
