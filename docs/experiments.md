@@ -782,3 +782,34 @@ Isso significa que o bloqueio real não é "BLE é o caminho errado" — é que 
 **Próximo passo sugerido:** usar o próprio celular do usuário (iOS) com um app scanner BLE genérico (ex.: **nRF Connect for Mobile**, gratuito, disponível pra iOS) pra inspecionar a característica `0xfd01`/`0xfd02` diretamente, sem depender do app oficial Mibo — já que o celular comprovadamente enxerga o dispositivo via BLE, ao contrário do PC.
 
 **Status:** CONFIRMED — BLE é o canal principal de pareamento usado pelo app oficial. CONFIRMED — o celular do usuário detecta o BLE normalmente; o PC de teste não. UNKNOWN — causa exata da falha de detecção no PC.
+
+## CORREÇÃO IMPORTANTE: identidade real do SoC é iComm Semiconductor SV32WB06, não Bouffalo Lab BL808 (2026-09-07)
+
+O usuário removeu a blindagem metálica do chip principal do RE761-N4P (sem necessidade de retrabalho a ar quente elaborado — a tampa saiu), revelando a marcação física direta do chip: **`SV32WB06 / TAC2411 / 0PW07`**.
+
+Busca web por `"SV32WB06"` encontrou resultado direto e definitivo: é um SoC real e documentado publicamente — **iComm Semiconductor SV32WB0xx** (Shenzhen iComm Semiconductor Co., Ltd., 南方硅谷半导体), datasheet oficial público: `SV32WB0xx Datasheet V1.1` (https://www.icomm-semi.com/Uploads/Temp/files/2022-01-21/SV32WB0xx%20Datasheet%20V1.1.pdf).
+
+**A hipótese anterior de Bouffalo Lab BL808 estava ERRADA** — era baseada só em fingerprint técnico (clock de 480MHz, combo WiFi+BT+BLE integrado), que por coincidência também bate com a arquitetura da iComm. Toda a análise de pinout GPIO39/PU_CHIP feita anteriormente com base no datasheet do BL808 não se aplica a este chip e deve ser descartada.
+
+### Especificações confirmadas do SV32WB06 (datasheet oficial)
+
+- WiFi 802.11 b/g/n single spatial stream + Bluetooth 5.0
+- Encapsulamento **QFN60**
+- 128KB ROM + até 512KB SRAM — bate exatamente com `total SRAM: 512K` visto no `meminfo`
+- Flash integrado no próprio encapsulamento (até 32Mb)
+- PMU integrado, e-fuse de 2304 bits para dados específicos do chip
+
+### Pinout de boot/reset (Tabela 20/23, Figura 14 do datasheet — específico da variante SV32WB06)
+
+| Sinal | Pino físico (QFN60) | Descrição |
+|---|---|---|
+| **GPIO13** | **22** | Strap de boot: 0 = flash boot (padrão), **1 = modo IAP** (programação/gravação) |
+| **LDO_EN** | **21** | Reset completo do chip — nível baixo por ≥500µs reseta; após de-assert o chip fica em modo OFF aguardando comunicação do host |
+| GPIO00 | 8 | UART Rx pra gravação em modo IAP (confirmado especificamente para SV32WB01x/SV32WB06 na nota da Tabela 23) |
+| GPIO01 | 9 | UART Tx pra gravação em modo IAP |
+
+Pinos 21 (LDO_EN) e 22 (GPIO13) são fisicamente adjacentes no encapsulamento.
+
+**Status:** CONFIRMED — identidade do SoC (marcação física + datasheet oficial batendo exatamente). CONFIRMED — pinout de boot/reset conforme datasheet oficial. UNKNOWN (próximo passo) — correlação entre a numeração de pinos do datasheet e a orientação física real do chip na placa (precisa localizar o marcador de pino 1 fisicamente, com foto ampliada e bem iluminada, pra contar corretamente).
+
+**Nota para sessões futuras:** referências a "Bouffalo Lab BL808", "GPIO39", "PU_CHIP" em entradas anteriores deste arquivo e em `hardware.md`/`references.md` referem-se à hipótese refutada — não usar para orientação prática. A informação correta e atual está sempre na seção mais recente sobre SV32WB06.

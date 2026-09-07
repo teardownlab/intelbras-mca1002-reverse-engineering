@@ -56,14 +56,14 @@ Pinout do módulo relevante para debug (correlacionado com J3 por continuidade �
 
 Status do módulo: **CONFIRMED** (identificação visual)
 Status da função/firmware: **CONFIRMED** (via captura passiva de UART, 2026-09-07 — ver [`experiments.md`](experiments.md))
-Status do SoC/fabricante do silício: **candidato encontrado** (nome de codinome visto em log de boot), mas não resolvido a um fabricante/part number público — ver abaixo.
+Status do SoC/fabricante do silício: **CONFIRMED** (2026-09-07, marcação física lida diretamente no chip após remoção da blindagem metálica).
 
 | Item | Valor | Status |
 |---|---|---|
-| Marcação serigráfica | RE761-N4P (SN: NMPB00300310) | CONFIRMED |
-| Fabricante do silício | — | UNKNOWN |
-| SoC interno (codinome de boot) | `TurismoE 6020B` (string `"< TurismoE 6020B SoC BT1M Rx DC calibration...done"`, confirmada byte-a-byte em captura de 2026-09-07) | CONFIRMED a string; UNKNOWN o mapeamento para fabricante/part number real — sem resultado em busca web (`TurismoE` não é nome público de nenhum fabricante conhecido; provavelmente codinome interno do fornecedor de silício pra Dahua/IMOU) |
-| SoC interno (hipótese por fingerprint técnico) | **Bouffalo Lab BL808** (ou variante próxima da mesma família) | INFERRED, alta confiança — ver justificativa abaixo. NÃO CONFIRMED ainda (falta leitura de chip ID real via bootloader ROM) |
+| Marcação serigráfica (módulo) | RE761-N4P (SN: NMPB00300310) | CONFIRMED |
+| Fabricante do silício | **Shenzhen iComm Semiconductor Co., Ltd.** (南方硅谷半导体) | CONFIRMED (marcação física + datasheet oficial) |
+| SoC interno (part number real) | **SV32WB06** — marcação física lida no chip: `SV32WB06 / TAC2411 / 0PW07` (após remoção da blindagem) | **CONFIRMED** — bate exatamente com datasheet público da iComm Semi (`SV32WB0xx Datasheet V1.1`) |
+| SoC interno (codinome de boot, obsoleto) | ~~`TurismoE 6020B`~~ — string de boot real, mas não é o nome do fabricante nem do part number; hipótese de "Bouffalo Lab BL808" baseada só em fingerprint técnico (clock 480MHz + combo WiFi/BT) **estava ERRADA** — coincidência de arquitetura, não o mesmo chip | REFUTED em 2026-09-07 — ver correção abaixo |
 | Função na placa | Controlador Wi-Fi / gateway principal (roda a stack de aplicação do hub, fala com REX3B21 via UART e com a nuvem via Wi-Fi) | CONFIRMED |
 | Firmware | Baseado em SDK/framework **Dahua/IMOU** (símbolos `IMOU_sysEnvRead`, `IMOU_sceneLinkage`, `ZigbeeAdapt_Rex.c`) | CONFIRMED |
 | Build identificado | `Project Name: GateWay`, `PackName: General_GateWay_IOT-ZG2-IB_SV32WB0X_V2.4.628243.R.26014`, `Build File: product.gw-ZG2-IB.svr32wbx.cfg`, `Git Commit: 7f9a6ef6f` | CONFIRMED (string de boot, texto claro) |
@@ -98,33 +98,34 @@ Com J1-1 (RX) + J1-2 (TX) + GND dedicado ligados a um adaptador USB-TTL, existe 
 
 Qualquer outro comando (`help`, `ps`, `version`, `AT`, tentativas de senha `admin`/`12345678`/`888888`/`password`/`1234`/`0000`/número de série) aparenta ser silenciosamente ignorado. Um bloco `[password]:password is wrong / Enter the password,Please` aparece intercalado no log, mas com timing inconsistente com os comandos enviados — hipótese: é ruído de um subsistema não relacionado (ex.: provisionamento BLE) escrevendo na mesma UART compartilhada, não uma resposta real às nossas tentativas. Não confirmado.
 
-### Hipótese de identificação do SoC: Bouffalo Lab BL808
+### Identificação definitiva do SoC: iComm Semiconductor SV32WB06 (CONFIRMED, 2026-09-07)
 
-Fingerprint técnico do `sysinfo` bate com as especificações públicas do **Bouffalo Lab BL808** (chip RISC-V multi-core, Wi-Fi/BT/BLE/Zigbee integrado, usado por ex. na placa Pine64 Ox64):
+A blindagem metálica sobre o chip principal do RE761-N4P foi removida, revelando a marcação física direta: **`SV32WB06 / TAC2411 / 0PW07`**. Busca web confirmou: **SV32WB06** é um SoC real, documentado publicamente pela **Shenzhen iComm Semiconductor Co., Ltd.** — datasheet oficial: `SV32WB0xx Datasheet V1.1` (https://www.icomm-semi.com/Uploads/Temp/files/2022-01-21/SV32WB0xx%20Datasheet%20V1.1.pdf).
 
-| Característica observada | BL808 (datasheet público) | Bate? |
+**Isso invalida a hipótese anterior de Bouffalo Lab BL808** — a semelhança (clock alto, combo WiFi+BT) era coincidência de arquitetura entre fornecedores diferentes, não o mesmo chip. Toda referência anterior a BL808/GPIO39/PU_CHIP neste documento e nos demais (`experiments.md`, `references.md`) deve ser tratada como **obsoleta/refutada**.
+
+**Especificações confirmadas (batem com nossos achados via `sysinfo`/`meminfo`):**
+- WiFi 802.11 b/g/n (single spatial stream) + Bluetooth 5.0
+- Encapsulamento: **QFN60** (confirmado visualmente — contagem de pinos bate com o datasheet)
+- 128KB ROM + até 512KB SRAM — bate com `total SRAM: 512K` do `meminfo`
+- Flash integrado no encapsulamento (até 32Mb) — explica por que não achamos um chip de flash externo separado na PCB
+
+**Pinout QFN60 confirmado no datasheet oficial (Tabela 20/Figura 14, específico pra variante SV32WB06):**
+
+| Sinal | Pino físico (QFN60) | Função |
 |---|---|---|
-| Clock do core principal | 480MHz | Core de alto desempenho (M0) do BL808 roda a 480MHz | Sim |
-| SRAM | 512K (nossa partição/contexto) | 728KB de SRAM total no die, particionado entre os 3 cores — 512K num core individual é plausível | Compatível |
-| Rádios integrados | WiFi + BT + BLE (+ Zigbee via stack própria, mas delegado ao REX3B21 neste produto) | WiFi/BT/BLE/Zigbee nativo (802.15.4) | Compatível (fabricante pode optar por não usar o rádio Zigbee nativo) |
-| PSRAM | "psram not exist" | BL808 suporta até 64MB de pSRAM externo, opcional — ausência é uma opção de design, não contradiz | Compatível |
+| **GPIO13** | **Pino 22** | **Strap de boot**: nível 0 = boot normal da flash (padrão); **nível 1 = modo IAP** (gravação/programação) |
+| **LDO_EN** | **Pino 21** | **Reset completo do chip** — nível baixo por ≥500µs reseta tudo; a nota de fábrica diz "após de-assert, SV32WB0xx fica em modo OFF aguardando comunicação do host" |
+| GPIO00 | Pino 8 | UART Rx de gravação (usado em modo IAP) |
+| GPIO01 | Pino 9 | UART Tx de gravação (usado em modo IAP) |
 
-**Se confirmado**, isso é uma virada de jogo pro objetivo do projeto: BL808 tem **SDK open-source** (`bouffalo_sdk` no GitHub), datasheet e reference manual públicos, comunidade ativa (OpenBouffalo, projeto Ox64/Pine64), e ferramenta de gravação aberta (`bflb-mcu-tool`) que fala com o bootloader ROM via UART.
+Nota da Tabela 23 do datasheet: *"Use GPIO00/GPIO01 as UART Rx/Tx to program the flash for SV32WB01x/SV32WB06"* — confirma explicitamente essa combinação de pinos para a nossa variante exata.
 
-**Modo de entrada no bootloader ROM (ISP via UART) — CONFIRMADO no datasheet oficial (`BL808_DS_en_1.1`, seção 2.7 "Boot" e 7.2.3 "Power-on sequence"):**
+**Vantagem prática:** os pinos 21 (LDO_EN) e 22 (GPIO13) ficam **fisicamente adjacentes** no encapsulamento — convenientes para soldar os dois de uma vez.
 
-| Sinal | Função | Pino físico (encapsulamento QFN88) |
-|---|---|---|
-| **GPIO39** | Pino de **Bootstrap**. Nível **1** durante o power-on = boot via UART (download de firmware) ou USB. Nível **0** = boot normal da flash. | Pino **84** (BL808C e BL808D) |
-| **UART de download** | Usa **GPIO20 e GPIO21** especificamente — não confirmado se são os mesmos pinos do console/log que já mapeamos em J1 (podem ser fisicamente diferentes) | — (não localizados na tabela ainda) |
-| **PU_CHIP** | "Chip enable", ativo em alto — funciona como o reset/habilitação geral do chip. Precisa estar em sequência de timing correta com o Bootstrap (GPIO39 deve estar estável ANTES de PU_CHIP subir, conforme diagrama de power-on sequence) | Pino **28** (BL808C) / Pino **26** (BL808D) |
+**Bloqueio atual:** a blindagem já foi removida (acesso físico direto ao chip existe agora), mas ainda falta **localizar o pino 1 fisicamente na foto/chip real** para poder contar corretamente até os pinos 21/22 (e 8/9). Isso exige uma foto bem nítida e ampliada do marcador de pino 1 (ponto/chanfro num dos cantos do QFN) com boa iluminação.
 
-Correção de identificação: é o core **D0** que roda a 480MHz (não o M0 — M0 roda a 320MHz), conforme Tabela 7.6 do datasheet. Isso bate exatamente com `mcu clk 480000000` visto no `sysinfo`.
-
-**Bloqueio atual:** ainda não sabemos qual pad físico do módulo RE761-N4P (placa customizada, não uma dev board oficial Bouffalo) corresponde a GPIO39, GPIO20/21 ou PU_CHIP — só temos os NÚMEROS DE PINO DO CHIP agora, não o mapeamento chip-pino → pad-do-módulo. Isso ainda exigiria: (a) remover a blindagem metálica e contar/identificar visualmente os pinos do QFN88 diretamente, comparando com o diagrama de pinout do datasheet (Fig. 3.1/3.2), ou (b) continuidade elétrica entre os pads já expostos (J1/J2) e os pinos do chip sob a blindagem.
-
-**Status:** INFERRED com alta confiança (fingerprint técnico + agora confirmação adicional da nomenclatura exata de pinos do datasheet oficial) — identidade do SoC como BL808 ainda NÃO CONFIRMED definitivamente (falta leitura de Chip ID real via bootloader). CONFIRMED — localização exata (GPIO39/pino 84) do strap de boot e (PU_CHIP/pino 28 ou 26) do enable, **assumindo que o SoC é de fato um BL808**.
-| J2 | suspeitos anteriores (pad 35/pad 8 do chip) não re-confirmados com a numeração corrigida | UNKNOWN — revisar |
+**Status:** CONFIRMED — identidade do SoC (SV32WB06, iComm Semiconductor) e localização exata dos pinos de boot/reset no datasheet oficial. UNKNOWN (próximo passo) — correlação entre a numeração do datasheet e a orientação física real do chip soldado na placa.
 
 Próximos passos de identificação sugeridos (não executados ainda):
 - pesquisar `RE761-N4P` em bases de FCC ID / certificação, caso exista marcação de certificação próxima ao módulo na PCB;

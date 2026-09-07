@@ -55,7 +55,17 @@ Observação: os documentos encontrados são para a família **REX3B**/REX3B21; 
 
 ## Módulo secundário RE761-N4P
 
-**Nenhuma fonte oficial encontrada até agora.** Buscas iniciais por "RE761-N4P" não retornaram datasheet, FCC filing nem página de fabricante. Este item permanece **UNKNOWN** — ver [`hardware.md`](hardware.md) para os próximos passos de identificação sugeridos (busca por FCC ID na própria PCB, fotos em alta resolução do módulo).
+**Nenhuma fonte oficial para o módulo em si** ("RE761-N4P" não retorna datasheet/FCC filing/página de fabricante). O SoC interno, porém, foi **identificado com certeza em 2026-09-07** após remoção da blindagem metálica e leitura da marcação física do chip: **iComm Semiconductor SV32WB06** (ver [`hardware.md`](hardware.md) e [`experiments.md`](experiments.md)).
+
+- **SV32WB0xx Datasheet V1.1 (oficial, público, confirma a marcação física exata):** https://www.icomm-semi.com/Uploads/Temp/files/2022-01-21/SV32WB0xx%20Datasheet%20V1.1.pdf
+- **Fabricante:** https://www.icomm-semi.com/ (Shenzhen iComm Semiconductor Co., Ltd. / 南方硅谷半导体)
+- Pinout QFN60 exato (Fig. 14 / Tabela 20 do datasheet) usado para localizar os pinos de boot (GPIO13, pino 22) e reset (LDO_EN, pino 21) — ver `hardware.md`.
+
+~~Hipótese anterior (Bouffalo Lab BL808) — REFUTADA em 2026-09-07.~~ Baseada só em semelhança de clock/arquitetura (480MHz, combo WiFi+BT), não é o mesmo chip. Os links de BL808 abaixo ficam só para referência histórica de como o engano aconteceu, não usar para nada prático deste projeto:
+- ~~BL808 Datasheet: https://files.pine64.org/doc/datasheet/ox64/BL808_DS_en_1.1%28open%29.pdf~~
+- ~~SDK open-source: https://github.com/bouffalolab/bouffalo_sdk~~
+
+Ver [`ble-provisioning-protocol.md`](ble-provisioning-protocol.md) para o protocolo de configuração via BLE (engenharia reversa do app oficial) — caminho alternativo ao reflash completo, que agora tem os pinos de boot/reset exatos identificados (SV32WB06), mas ainda depende de localizar fisicamente o pino 1 no chip real pra contar corretamente até os pinos 21/22.
 
 ## Notas de uso destas referências
 
