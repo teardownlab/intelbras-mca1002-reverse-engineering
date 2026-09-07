@@ -713,3 +713,48 @@ Tentativas sem sucesso (todas retornaram "password is wrong"): `help`, `ps`, `ve
 **Status:** CONFIRMED — bloco de senha é reativo, não ruído. UNKNOWN — a senha real; busca por engenharia reversa de string/algoritmo (não por tentativa cega) é o caminho mais produtivo daqui pra frente — ex.: decompilar o app Mibo/Intelbras (que provavelmente calcula ou conhece essa senha para modo de engenharia/fábrica) em vez de continuar advinhando.
 
 **Próximo passo sugerido:** analisar o APK do app Mibo/Intelbras (decompilação, procurar strings/algoritmos relacionados a senha de debug UART, "engineer mode", ou geração de senha a partir de MAC/SN) — decisão pendente do responsável do projeto sobre se vale investir nisso agora.
+
+## Testes de strap de boot no J2 + descoberta do modo de pareamento via botão físico (2026-09-07)
+
+Continuando a busca pelo pino de BOOT do (provável) BL808, testamos por eliminação com resistor (~2,2kΩ) em série, alternando GND e 3,3V (correção: o "3,3V" do primeiro teste foi sem querer puxado do J3-2, que na verdade é GND confirmado — repetido depois corretamente do J3-1):
+
+| Pino testado | Nível | Resultado |
+|---|---|---|
+| J2 pino 1 | GND (1ª vez) | Boot duplicado (reiniciou sozinho) — não reproduzido na repetição, provavelmente contato instável, não efeito real |
+| J2 pino 1 | GND (repetição, sem querer via J3-2) | Boot único normal |
+| J2 pino 1 | 3,3V (correto, via J3-1) | Boot único normal |
+
+**Conclusão:** J2 pino 1 não parece ser um strap de boot relevante — comportamento idêntico ao boot normal em ambos os níveis.
+
+### Descoberta principal: botão físico (K1) ativa modo de pareamento SoftAP + BLE
+
+Sugestão do usuário: testar o botão físico central (rodeado pelos LEDs azuis) durante o power-on, já que o `sysinfo` capturado antes mostrou uma task chamada `SmartLink` (mecanismo típico de pareamento WiFi). Teste: segurar o botão pressionado durante a energização por ~5s.
+
+**Resultado — não é strap de ISP, mas é uma descoberta funcional importante:** o firmware entra em modo de provisionamento, ativando simultaneamente:
+
+1. **SoftAP próprio, aberto (sem senha):**
+```
+softap_init
+####### softap: ssidd = mibosmart-0273NG #######
+####### softap: secure mode= 0 #######
+####### softap: key =  #######
+```
+(nome deriva do SN do produto: `mibosmart-` + últimos dígitos do SN `AEBM3200273NG`)
+
+2. **Bluetooth Low Energy com serviço GATT customizado de provisionamento:**
+```
+set bd_address: 98:2a:0a:d2:cc:7c
+primary service uuid 0xfdd0, handle 10, end_handle 15
+  characteristic uuid 0xfd01, val_handle 12, flags [WRITE_NO_RSP|WRITE]
+  characteristic uuid 0xfd02, val_handle 14, flags [READ|NOTIFY]
+  ccc descriptor uuid 0x2902, handle 15
+```
+Também expõe os serviços BLE padrão GAP (`0x1800`) e GATT/Device Info (`0x1801`).
+
+**Interpretação:** esse é quase certamente o canal que o app Mibo/Intelbras usa para configurar o WiFi do dispositivo na primeira vez (escreve comandos/credenciais em `0xfd01`, recebe resposta/status via notify em `0xfd02`; alternativamente pode-se conectar diretamente no SoftAP aberto `mibosmart-0273NG` e falar algum protocolo HTTP/TCP local). Como o SoftAP é **aberto, sem senha**, e o protocolo BLE não usa nenhum emparelhamento/bonding visível até agora, isso é uma superfície de ataque/interoperabilidade **sem precisar de nenhum acesso físico/solda** — só WiFi ou BLE.
+
+**Relevância estratégica:** isso pode ser um caminho mais direto pro objetivo de usar o MCA1002 de forma standalone/local do que reflashar o RE761-N4P — se conseguirmos entender o protocolo usado nessa característica BLE (ou no SoftAP), podemos potencialmente reconfigurar/controlar o dispositivo localmente sem depender da nuvem Dahua/Easy4ip, sem precisar identificar pino de boot nem senha do console.
+
+**Status:** CONFIRMED — botão físico ativa SoftAP aberto `mibosmart-0273NG` + serviço BLE GATT `0xfdd0` (chars `0xfd01`/`0xfd02`). UNKNOWN — o protocolo exato usado em ambos os canais (formato dos comandos BLE, se o SoftAP expõe alguma API HTTP local).
+
+**Próximo passo sugerido:** com um celular/PC, conectar no SoftAP `mibosmart-0273NG` e escanear a rede local (procurar portas abertas, ex.: 80/8080/HTTP) enquanto o modo de pareamento está ativo — ou usar um app de scanner BLE genérico (ex.: nRF Connect) pra inspecionar/testar a característica `0xfd01` diretamente, sem precisar do app oficial Mibo.
