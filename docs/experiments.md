@@ -758,3 +758,17 @@ Também expõe os serviços BLE padrão GAP (`0x1800`) e GATT/Device Info (`0x18
 **Status:** CONFIRMED — botão físico ativa SoftAP aberto `mibosmart-0273NG` + serviço BLE GATT `0xfdd0` (chars `0xfd01`/`0xfd02`). UNKNOWN — o protocolo exato usado em ambos os canais (formato dos comandos BLE, se o SoftAP expõe alguma API HTTP local).
 
 **Próximo passo sugerido:** com um celular/PC, conectar no SoftAP `mibosmart-0273NG` e escanear a rede local (procurar portas abertas, ex.: 80/8080/HTTP) enquanto o modo de pareamento está ativo — ou usar um app de scanner BLE genérico (ex.: nRF Connect) pra inspecionar/testar a característica `0xfd01` diretamente, sem precisar do app oficial Mibo.
+
+## Varredura do SoftAP de pareamento — sem serviço TCP local (2026-09-07)
+
+Conectado o PC diretamente no SoftAP aberto `mibosmart-0273NG` (via `netsh wlan`, perfil temporário sem senha). IP obtido via DHCP do próprio MCA1002: `192.168.111.2`, gateway `192.168.111.1` (o próprio dispositivo). Ping confirma alcançável (1-6ms).
+
+Varredura de portas TCP 1-2000 + portas conhecidas de Dahua/IMOU (37777, 37778, 8000, 9527, 8899, etc.): **nenhuma porta aberta**. O SoftAP serve apenas DHCP, sem nenhum servidor HTTP/TCP de configuração local acessível diretamente por essa rede.
+
+**Conclusão:** a configuração provavelmente é feita via **BLE** (características `0xfd01`/`0xfd02` do serviço `0xfdd0`, já documentadas acima), não via WiFi/HTTP local. O SoftAP existe mas não expõe nenhuma superfície de rede útil descoberta até agora.
+
+**Nota lateral:** um segundo teste do botão físico não reproduziu o modo de pareamento quando feito durante poder-ligar sem clareza sobre qual botão foi pressionado; um teste seguinte, pressionando e soltando o botão **superior** com o dispositivo já ligado e rodando normalmente (não durante power-on), reativou o SoftAP com sucesso — sugerindo que **não é necessário segurar o botão durante o power-on**; um toque no botão superior a qualquer momento (dispositivo já ligado) já ativa o modo de pareamento. Não confirmado o papel do botão inferior ainda.
+
+**Status:** CONFIRMED — SoftAP não expõe serviço TCP em portas comuns. INFERRED — botão superior (a qualquer momento, não só no boot) ativa modo de pareamento BLE+SoftAP. UNKNOWN — função do botão inferior; protocolo exato usado na característica BLE `0xfd01`/`0xfd02`.
+
+**Próximo passo sugerido:** inspecionar a característica BLE via app scanner genérico (ex.: nRF Connect, disponível também para iOS) para tentar entender o protocolo de provisionamento sem depender do app oficial Mibo.
