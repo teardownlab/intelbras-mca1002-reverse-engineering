@@ -772,3 +772,13 @@ Varredura de portas TCP 1-2000 + portas conhecidas de Dahua/IMOU (37777, 37778, 
 **Status:** CONFIRMED — SoftAP não expõe serviço TCP em portas comuns. INFERRED — botão superior (a qualquer momento, não só no boot) ativa modo de pareamento BLE+SoftAP. UNKNOWN — função do botão inferior; protocolo exato usado na característica BLE `0xfd01`/`0xfd02`.
 
 **Próximo passo sugerido:** inspecionar a característica BLE via app scanner genérico (ex.: nRF Connect, disponível também para iOS) para tentar entender o protocolo de provisionamento sem depender do app oficial Mibo.
+
+## Confirmação: fluxo oficial do app Mibo usa BLE pra pareamento (2026-09-07)
+
+Verificado com o usuário: o app Mibo/Intelbras, ao adicionar o MCA1002, primeiro pareia via **Bluetooth**, depois pede a rede WiFi de casa (confirmando a hipótese original — o serviço BLE `0xfdd0` descoberto anteriormente é, sim, o canal de provisionamento principal, não um mecanismo secundário).
+
+Isso significa que o bloqueio real não é "BLE é o caminho errado" — é que **o adaptador Bluetooth deste PC (ou o Windows) não está conseguindo detectar o advertising do MCA1002**, mesmo com o firmware confirmando que o advertising iniciou (`SSV_GAP_BLE_ADV_START_COMPLETE_EVT`) e testado tanto via `bleak`/Python quanto via configurações nativas do Windows. O celular do usuário, rodando o app Mibo oficial, consegue parear normalmente — sugerindo que o problema é de sensibilidade/compatibilidade de antena Bluetooth do PC (ou possivelmente da blindagem metálica do chip atenuando o sinal em certas direções/distâncias), não do dispositivo em si.
+
+**Próximo passo sugerido:** usar o próprio celular do usuário (iOS) com um app scanner BLE genérico (ex.: **nRF Connect for Mobile**, gratuito, disponível pra iOS) pra inspecionar a característica `0xfd01`/`0xfd02` diretamente, sem depender do app oficial Mibo — já que o celular comprovadamente enxerga o dispositivo via BLE, ao contrário do PC.
+
+**Status:** CONFIRMED — BLE é o canal principal de pareamento usado pelo app oficial. CONFIRMED — o celular do usuário detecta o BLE normalmente; o PC de teste não. UNKNOWN — causa exata da falha de detecção no PC.
