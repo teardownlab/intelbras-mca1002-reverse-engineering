@@ -642,3 +642,21 @@ Também presentes: registro de dispositivos HAL (`wdt`, `gpio`, `uart0`, `uart1`
 **Status:** CONFIRMED — J1-2 é o TX do RE761-N4P, a 115200 8N1. CONFIRMED — identidade da stack de firmware (Dahua/IMOU) e do backend de nuvem. UNKNOWN — part number/fabricante do silício em si (não identificado, apenas o firmware que roda nele).
 
 **Próximo passo:** localizar fisicamente o chip de flash SPI externo (provável SOIC-8) associado a esse sistema de arquivos de ~19,6 MB, ainda não mapeado na PCB. Opcionalmente, considerar extração do `/ota.bin` (13,3 MB) por algum canal de atualização para análise offline — não iniciado.
+
+## Segunda captura de boot do RE761-N4P — confirmação e novo dado (2026-09-07, take 2)
+
+Repetição do teste anterior (mesma fiação, J1-2 → RXD do adaptador, GND dedicado, 115200 8N1), power-cycle solicitado ao usuário com escuta já ativa do lado do Claude Code (script de captura para arquivo, não terminal interativo do usuário). Capturados 7302 bytes.
+
+**Resultado:** todo o conteúdo relevante da primeira captura foi confirmado novamente (project name `GateWay`, DRS `iotaccess.easy4ipcloud.com`, símbolos `IMOU_*`, `ZigbeeAdapt_Rex.c`, MAC `98-2A-0A-D2-CC-7B`). Pequenas variações de dígitos entre as duas capturas em números específicos (ex.: "chip mem" e "flash total") são artefatos de bytes ocasionalmente perdidos/corrompidos na sincronização serial, não mudanças reais — tratar sempre o texto reconhecível como confirmação cruzada, não os números exatos quando divergem entre capturas.
+
+**Dado novo, confirmado byte-a-byte nesta captura (sem corrupção):**
+
+```text
+< TurismoE 6020B SoC BT1M Rx DC calibration...done
+```
+
+Pesquisa web por `"TurismoE"` (isolado e combinado com Dahua/IMOU/BT/WiFi) não retornou nenhum resultado relevante — não é um nome de produto público documentado. Hipótese: codinome interno usado pelo fornecedor de silício (não identificado) na comunicação com a Dahua/IMOU, não uma marca comercial pesquisável.
+
+**Status:** CONFIRMED — string exata `TurismoE 6020B SoC` presente no firmware. UNKNOWN — a qual fabricante/part number real essa string corresponde.
+
+**Próximo passo sugerido:** ao pesquisar FCC ID / certificação do RE761-N4P (já sugerido anteriormente), usar também `TurismoE` e `6020B` como termos de busca adicionais — pode aparecer em datasheets vazados, fóruns de teardown de outros produtos Dahua/IMOU, ou repositórios de firmware de terceiros.

@@ -56,13 +56,13 @@ Pinout do módulo relevante para debug (correlacionado com J3 por continuidade �
 
 Status do módulo: **CONFIRMED** (identificação visual)
 Status da função/firmware: **CONFIRMED** (via captura passiva de UART, 2026-09-07 — ver [`experiments.md`](experiments.md))
-Status do SoC/fabricante do silício: ainda **UNKNOWN** (não identificado por part number; identificado apenas pela stack de firmware que roda nele)
+Status do SoC/fabricante do silício: **candidato encontrado** (nome de codinome visto em log de boot), mas não resolvido a um fabricante/part number público — ver abaixo.
 
 | Item | Valor | Status |
 |---|---|---|
 | Marcação serigráfica | RE761-N4P (SN: NMPB00300310) | CONFIRMED |
 | Fabricante do silício | — | UNKNOWN |
-| SoC interno (part number) | — | UNKNOWN |
+| SoC interno (codinome de boot) | `TurismoE 6020B` (string `"< TurismoE 6020B SoC BT1M Rx DC calibration...done"`, confirmada byte-a-byte em captura de 2026-09-07) | CONFIRMED a string; UNKNOWN o mapeamento para fabricante/part number real — sem resultado em busca web (`TurismoE` não é nome público de nenhum fabricante conhecido; provavelmente codinome interno do fornecedor de silício pra Dahua/IMOU) |
 | Função na placa | Controlador Wi-Fi / gateway principal (roda a stack de aplicação do hub, fala com REX3B21 via UART e com a nuvem via Wi-Fi) | CONFIRMED |
 | Firmware | Baseado em SDK/framework **Dahua/IMOU** (símbolos `IMOU_sysEnvRead`, `IMOU_sceneLinkage`, `ZigbeeAdapt_Rex.c`) | CONFIRMED |
 | Build identificado | `Project Name: GateWay`, `PackName: General_GateWay_IOT-ZG2-IB_SV32WB0X_V2.4.628243.R.26014`, `Build File: product.gw-ZG2-IB.svr32wbx.cfg`, `Git Commit: 7f9a6ef6f` | CONFIRMED (string de boot, texto claro) |
