@@ -31,9 +31,9 @@ O firmware original (Rexense, `REXENSE_HA_COO_Stk6710_MG215_1.7.3`) implementa u
 | 2. Toolchain headless (SLT) | **Concluído** — GSDK 2026.6.1, slc-cli 6.0.23, gcc-arm-none-eabi 14.2, LLVM embedded 21.1, CMake, Ninja, Commander, zap, tudo instalado via `slt install` |
 | 3. Gerar projeto NCP-UART-HW customizado | **Concluído** — `iostream_usart` (instância `vcom`) configurado com USART0, TX=PA5, RX=PA6, sem controle de fluxo (2 fios) |
 | 4. Compilar | **Concluído com sucesso** |
-| 5. Confirmar pinos PA5/PA6 fisicamente | Ainda não feito — próximo passo antes de testar via USB |
+| 5. Confirmar pinos PA5/PA6 fisicamente | **Concluído em 2026-09-06** — ver `measurements.md` |
 | 6. Gravar via SWD | **CONCLUÍDO com sucesso em 2026-09-05** — ver detalhes abaixo |
-| 7. Testar com Z2M/ZHA | Não iniciado — depende da etapa 5 |
+| 7. Testar com Z2M/ZHA | **Concluído (teste de baixo nível) em 2026-09-07** — comunicação EZSP confirmada via `bellows`; falta o passo final de UI do ZHA no Home Assistant |
 
 ## Gravação realizada (2026-09-05)
 
@@ -134,6 +134,56 @@ Resolvido usando o manual oficial da Rexense (pinout completo, ver [`measurement
 **Posição física final confirmada** (ver tabela completa em `measurements.md`): RXD(pino 4) e TXD(pino 3) são os dois pads imediatamente adjacentes ao VCC(pino 5), no lado oposto ao GND(pino 7), na mesma fileira de 7 pads sob o módulo.
 
 **Status: pronto para soldar os fios de TXD/RXD e prosseguir para o teste com adaptador USB-serial (CP2102, já confirmado 3,3V nativo).**
+
+## Etapa 6 concluída — fios soldados e isolamento confirmado (2026-09-06)
+
+TXD e RXD soldados nas posições identificadas (fios azul/amarelo, cores não têm significado fixo — o mapeamento real é por posição física, ver `measurements.md`). Teste de isolamento feito: nenhum dos dois fios apresentou continuidade entre si nem com VCC/GND/RESET/SWDIO/SWCLK — confirma que são sinais distintos e corretos.
+
+## Etapa 7 — teste real no servidor Home Assistant (2026-09-07)
+
+Adaptador CP2102 conectado ao servidor `campinas` (10.0.10.6, Debian, Docker). Passos executados via SSH (`guilherme@10.0.10.6`, chave `~/.ssh/id_ed25519_servidor_campinas`):
+
+1. Dispositivo reconhecido pelo kernel: `/dev/ttyUSB0` (`lsusb`: "Silicon Labs CP210x UART Bridge").
+2. Usuário `guilherme` adicionado ao grupo `dialout` (efeito só no próximo login) + `chmod 666 /dev/ttyUSB0` temporário para o teste imediato.
+3. Criado venv temporário (`/tmp/ezsp-test`) e instalado `bellows` 1.0.1 (biblioteca EZSP que o ZHA usa por baixo dos panos) para teste de baixo nível, **antes** de mexer na configuração do Home Assistant.
+
+### Teste de comunicação EZSP — sucesso
+
+```
+bellows -d /dev/ttyUSB0 -b 115200 info
+```
+
+Resultado:
+
+```text
+EUI64: 0c:ef:f6:ff:fe:d2:51:1f   (prefixo OUI real da Silicon Labs — válido)
+NodeId: 0x0000, tipo: COORDINATOR
+Network status: JOINED_NETWORK
+PAN ID: 0x3C99, Extended PAN ID: 25:74:83:71:f5:17:f1:06
+Canal: 20, TX power: 20
+Security: GLOBAL_LINK_KEY | HAVE_TRUST_CENTER_LINK_KEY | TRUST_CENTER_USES_HASHED_LINK_KEY
+EmberZNet version: 9.1.1.0 build 0
+```
+
+**Confirma definitivamente**: solda correta, firmware correto, comunicação UART/EZSP end-to-end funcional.
+
+### Achado: estado de rede antigo ainda presente no NVM3
+
+O coordenador reporta `JOINED_NETWORK` com PAN ID/chaves específicos — **isso não veio da nossa gravação**. Nosso reflash substituiu só a região de aplicação (`0x4000`+), não tocou no NVM3 (fica no topo da flash), então dados de rede do firmware **original** da Rexense (possivelmente de uma rede real usada com o app Mibo) sobreviveram. Recomendado formar rede nova ao configurar o ZHA, em vez de tentar reaproveitar essa rede antiga.
+
+**Tentativa de limpar via `bellows leave` falhou** — bug de incompatibilidade entre `bellows` 1.0.1 (código antigo esperando `EmberStatus`) e o formato de resposta `sl_Status` do nosso firmware/EmberZNet 9.1.1.0 (`TypeError: 'sl_Status' object is not subscriptable`, em `bellows/cli/network.py:118`). Não é um problema do nosso firmware — é uma lacuna da ferramenta CLI do bellows com essa versão de protocolo. Decisão: deixar o próprio fluxo de configuração do ZHA (via zigpy, mais atualizado) lidar com isso — normalmente oferece opção de formar rede nova.
+
+### Configuração do container Home Assistant
+
+Compose em `/home/guilherme/homeassistant-app/compose.yml` já roda com `privileged: true`, mas contêineres privilegiados só herdam os dispositivos do host presentes **no momento em que sobem** — por isso `/dev/ttyUSB0` não aparecia dentro do container até reiniciá-lo:
+
+```
+docker restart homeassistant
+```
+
+Depois do restart, `docker exec homeassistant ls /dev/ttyUSB0` confirma o dispositivo visível dentro do container. (`/dev/serial/by-id/...` — o symlink estável — não é visível dentro do container mesmo em modo privilegiado; usar `/dev/ttyUSB0` diretamente por enquanto.)
+
+**Próximo passo (ação manual do usuário na UI do HA):** Configurações → Dispositivos e Serviços → Adicionar Integração → **ZHA** → porta `/dev/ttyUSB0`, radio type EZSP (detecção automática esperada), baud rate 115200. Se o ZHA detectar a rede antiga e oferecer escolha, **formar rede nova**.
 
 **Sessão pausada em 2026-09-05 nesta etapa — retomar por aqui.**
 

@@ -605,3 +605,40 @@ Este firmware **não expõe o protocolo EZSP padrão da Silicon Labs diretamente
 **Status:** CONFIRMED — conjunto de comandos AT proprietário presente no firmware; build de 28/07/2023. INFERRED — driver ASH presente mas papel exato no protocolo do host ainda não confirmado. CONFIRMED (consequência lógica) — incompatibilidade direta com ZHA/Zigbee2MQTT no estado atual do firmware.
 
 **Próximo passo:** decisão do responsável do projeto sobre qual caminho seguir (engenharia reversa do protocolo AT/ASH vs. considerar reflash mais adiante). Se optar pela engenharia reversa, o próximo passo técnico seria capturar tráfego UART real entre o EFR32MG21 e o resto da placa (com o RESET ainda não conectado e sem alterar nada — apenas escuta passiva), já que J3-6 (ainda não identificado) ou os pinos UART do REX3B21S (documentados como PA5/TXD e PA6/RXD, ainda não testados por continuidade) podem ser o caminho físico dessa comunicação.
+
+## Identificação do RE761-N4P via escuta passiva de UART (2026-09-07)
+
+**Objetivo:** identificar o chip/firmware do módulo secundário "RE761-N4P" (WiFi/gateway principal), sem desmontar a blindagem metálica, aproveitando o padrão de continuidade já mapeado nos headers J1/J2/J3 (ver [`measurements.md`](measurements.md)).
+
+**Método:** adaptador USB-TTL (CP2102, 3,3V nativo) ligado com apenas 2 fios — sinal (candidato a TX do chip) → RXD do adaptador, e GND do adaptador → GND da placa (fio direto, dedicado; **não** usar a carcaça/GND do cabo USB como referência de terra, por não haver garantia de plano de terra comum entre a fonte do MCA e o adaptador). TXD/3V3/+5V do adaptador deixados desconectados (escuta passiva pura, sem envio).
+
+**Nota de segurança:** um incidente anterior de fiação (5V do CP2102 acidentalmente ligado ao GND do MCA) foi identificado e corrigido antes deste teste; o adaptador foi verificado como não danificado (`Get-PnpDevice` no Windows mostrando status "OK", enumerando normalmente como COM7).
+
+**Tentativas sem sucesso (antes da correção de fiação):** duas capturas no servidor Campinas (74880 e 115200 baud) e duas no PC local (mesmos baud rates) resultaram em 0 bytes — causa raiz: o curto 5V/GND descrito acima invalidava a referência de terra.
+
+**Tentativa bem-sucedida:** com a fiação corrigida (2 fios: sinal + GND dedicado) e monitor de leitura contínua em PowerShell (`[System.IO.Ports.SerialPort]`), conectado no pino **J1-2** (numeração do header J1: pinos 1→4, contados de fora da placa para dentro), a **115200 baud, 8N1** — captura de **6661 bytes** durante poder-cycle do MCA1002, com texto ASCII legível desde o início.
+
+### Conteúdo identificado no boot capturado
+
+```text
++--------------------------------------------------+
+| Project Name: GateWay
+| Project PackName: General_GateWay_IOT-ZG2-IB_SV32WB0X_V2.4.628243.R.26014
+| Git   Commit: 7f9a6ef6f
+| Build   File: product.gw-ZG2-IB.svr32wbx.cfg
+| Build   Time: 09:36:10
+| Product   SN: AEBM3200273NG
+| Product  MAC: 98-2A-0A-D2-CC-7B
+| Producut  DRS: iotaccess.easy4ipcloud.com
++--------------------------------------------------+
+```
+
+Também presentes: registro de dispositivos HAL (`wdt`, `gpio`, `uart0`, `uart1`, `wlan`, `voice`, `rtc`, `flash`, `ble`, `misc`, `pwm`), listagem de um sistema de arquivos próprio (flash total ~19,6 MB, ~1,4 MB usado, incluindo `/ota.bin` de 13,3 MB, `/Back_zigbeelib`, `/Back_wifikey`, `/Back_wifissid`, `/Back_gateway`, `/Back_modelMapList`, `/Back_pidModelInfo`, `/Back_trustCode`, `/trackRule`), inicialização de uma stack Zigbee própria (`ZigbeeAdapt_Rex.c`, `zigbee max_num=800`, versão `1.2.3-0.4a3e46e`), e diversos símbolos com prefixo `IMOU_` (`IMOU_sysEnvRead`, `IMOU_sceneLinkage`, `IMOU_LogTrackBinary`).
+
+**Interpretação — achado estratégico:** os símbolos `IMOU_*` e o domínio de nuvem `iotaccess.easy4ipcloud.com` identificam a stack como sendo do framework de firmware **Dahua/IMOU** ("Easy4ip" é a marca de nuvem IoT da Dahua Technology). Isso confirma que o MCA 1002 é, no nível do chip Wi-Fi/gateway, um **hub Dahua/IMOU rebrandeado pela Intelbras** — a nuvem Mibo/Intelbras provavelmente é white-label sobre a plataforma Easy4ip da Dahua. Ver detalhes consolidados em [`hardware.md`](hardware.md).
+
+**Achado de segurança — ⚠️ NUNCA COMMITAR CAPTURAS BRUTAS DESTE CHIP:** o log de boot expõe, em texto claro, as credenciais de Wi-Fi doméstico já pareadas no dispositivo (`Connect AP: ssid=...` / `Connect AP: Password=...`). A captura bruta completa foi guardada apenas localmente, fora deste repositório (`C:\Users\guilh\mca1002-backups\wifi-chip-captures\`, com aviso explícito de não commitar no nome do arquivo). Qualquer captura futura deste chip deve passar por revisão/redação antes de qualquer commit.
+
+**Status:** CONFIRMED — J1-2 é o TX do RE761-N4P, a 115200 8N1. CONFIRMED — identidade da stack de firmware (Dahua/IMOU) e do backend de nuvem. UNKNOWN — part number/fabricante do silício em si (não identificado, apenas o firmware que roda nele).
+
+**Próximo passo:** localizar fisicamente o chip de flash SPI externo (provável SOIC-8) associado a esse sistema de arquivos de ~19,6 MB, ainda não mapeado na PCB. Opcionalmente, considerar extração do `/ota.bin` (13,3 MB) por algum canal de atualização para análise offline — não iniciado.

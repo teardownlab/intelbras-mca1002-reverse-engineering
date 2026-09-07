@@ -54,21 +54,40 @@ Pinout do módulo relevante para debug (correlacionado com J3 por continuidade �
 
 ## Módulo secundário — RE761-N4P
 
-Status do módulo: **CONFIRMED** (identificação visual apenas)
-Status do chipset/função: **UNKNOWN**
+Status do módulo: **CONFIRMED** (identificação visual)
+Status da função/firmware: **CONFIRMED** (via captura passiva de UART, 2026-09-07 — ver [`experiments.md`](experiments.md))
+Status do SoC/fabricante do silício: ainda **UNKNOWN** (não identificado por part number; identificado apenas pela stack de firmware que roda nele)
 
 | Item | Valor | Status |
 |---|---|---|
-| Marcação serigráfica | RE761-N4P | CONFIRMED |
-| Fabricante | — | UNKNOWN |
-| SoC interno | — | UNKNOWN |
-| Função na placa | — | UNKNOWN (hipótese: controlador Wi-Fi, não confirmado) |
-| Interface com REX3B21 | — | UNKNOWN (hipótese: serial/UART, não confirmado) |
+| Marcação serigráfica | RE761-N4P (SN: NMPB00300310) | CONFIRMED |
+| Fabricante do silício | — | UNKNOWN |
+| SoC interno (part number) | — | UNKNOWN |
+| Função na placa | Controlador Wi-Fi / gateway principal (roda a stack de aplicação do hub, fala com REX3B21 via UART e com a nuvem via Wi-Fi) | CONFIRMED |
+| Firmware | Baseado em SDK/framework **Dahua/IMOU** (símbolos `IMOU_sysEnvRead`, `IMOU_sceneLinkage`, `ZigbeeAdapt_Rex.c`) | CONFIRMED |
+| Build identificado | `Project Name: GateWay`, `PackName: General_GateWay_IOT-ZG2-IB_SV32WB0X_V2.4.628243.R.26014`, `Build File: product.gw-ZG2-IB.svr32wbx.cfg`, `Git Commit: 7f9a6ef6f` | CONFIRMED (string de boot, texto claro) |
+| Backend de nuvem (DRS) | `iotaccess.easy4ipcloud.com` — plataforma IoT "Easy4ip" da Dahua Technology | CONFIRMED (string de boot, texto claro) |
+| MAC deste chip | `98-2A-0A-D2-CC-7B` (e um segundo, `...CC-7C`, provavelmente a interface BT/BLE do mesmo SoC) | CONFIRMED |
+| Zigbee SDK usado internamente para falar com o REX3B21 | `zigbee max_num=800`, versão `1.2.3-0.4a3e46e`, arquivo `ZigbeeAdapt_Rex.c` | CONFIRMED |
+| Armazenamento (flash) próprio deste chip | ~19,6 MB total, ~1,4 MB usado (fora da partição de OTA); contém `/ota.bin` (13,3 MB), `/Back_zigbeelib`, `/Back_wifikey`, `/Back_wifissid`, `/Back_gateway`, etc. — sistema de arquivos próprio, separado da flash de 512 KiB do EFR32 | CONFIRMED (listagem de boot) |
+| Interface com REX3B21 | UART (não SPI/I2C) | CONFIRMED |
+
+**Conclusão importante para o objetivo do projeto:** o MCA 1002 é, por baixo, um hub Dahua/IMOU rebrandeado pela Intelbras (Mibo). A nuvem "Intelbras/Mibo" é provavelmente white-label da plataforma Easy4ip da Dahua. Isso não muda o plano de usar o EFR32/REX3B21 como coordenador Zigbee local — mas explica a origem do protocolo/arquitetura original e é relevante caso se queira, no futuro, investigar o RE761-N4P mais a fundo (ex.: extrair `/ota.bin` via alguma interface de atualização, já que ele contém o firmware Dahua/IMOU completo).
+
+**Achado de segurança (não relacionado ao silício, mas relevante):** o RE761-N4P grava a senha de Wi-Fi doméstico do usuário em texto claro em variáveis internas expostas no próprio log de boot (`Connect AP: ssid=...` / `Connect AP: Password=...`). Não foi investigado se o arquivo `/Back_wifikey` na flash também guarda em claro, mas é provável. **Nunca commitar capturas brutas de UART deste chip no repositório público** — ver aviso em [`experiments.md`](experiments.md).
+
+Interface física confirmada (numeração do header **J1: pino 1 a 4, contado de fora da placa para dentro**):
+
+| Header/pino | Função | Status |
+|---|---|---|
+| J1 pino 2 | TX do RE761-N4P (saída, 115200 8N1) | CONFIRMED (2026-09-07, captura de boot completa via UART) |
+| J1 (demais pinos) | não testados individualmente após a renumeração acima | UNKNOWN |
+| J2 | suspeitos anteriores (pad 35/pad 8 do chip) não re-confirmados com a numeração corrigida | UNKNOWN — revisar |
 
 Próximos passos de identificação sugeridos (não executados ainda):
 - pesquisar `RE761-N4P` em bases de FCC ID / certificação, caso exista marcação de certificação próxima ao módulo na PCB;
-- fotografar o módulo em alta resolução para procurar outras marcações (datecode, FCC ID, SoC package markings);
-- verificar se há pontos de teste/headers próprios do RE761-N4P ainda não mapeados.
+- localizar fisicamente o chip de flash SPI externo (~19,6 MB) na PCB — provavelmente um SOIC-8 próximo ao RE761-N4P, ainda não mapeado;
+- opcionalmente, tentar extrair `/ota.bin` (13,3 MB) por algum canal de atualização/depuração, para análise offline do firmware Dahua/IMOU completo.
 
 ## Interface J3 (resumo)
 
