@@ -111,9 +111,19 @@ Fingerprint técnico do `sysinfo` bate com as especificações públicas do **Bo
 
 **Se confirmado**, isso é uma virada de jogo pro objetivo do projeto: BL808 tem **SDK open-source** (`bouffalo_sdk` no GitHub), datasheet e reference manual públicos, comunidade ativa (OpenBouffalo, projeto Ox64/Pine64), e ferramenta de gravação aberta (`bflb-mcu-tool`) que fala com o bootloader ROM via UART.
 
-**Modo de entrada no bootloader ROM (ISP via UART), conforme documentação pública do BL808:** segurar um pino de **BOOT** (strap) durante poder-ligar ou pulsar **RESET**, então a ROM entra em modo de download UART, respondendo ao `bflb-mcu-tool`. **Bloqueio atual:** não identificamos ainda (a) qual pino físico do módulo RE761-N4P corresponde ao strap de BOOT do BL808, nem (b) um pino de RESET confirmado — o pinout exato do módulo (não é uma placa de desenvolvimento oficial Bouffalo, é um módulo customizado da Dahua/fornecedor) não é público. Descobrir isso exigiria continuidade elétrica sob a blindagem metálica (ver pergunta em aberto sobre remoção da capa) ou tentativa por eliminação nos pads já mapeados em J1/J2.
+**Modo de entrada no bootloader ROM (ISP via UART) — CONFIRMADO no datasheet oficial (`BL808_DS_en_1.1`, seção 2.7 "Boot" e 7.2.3 "Power-on sequence"):**
 
-**Status:** INFERRED com alta confiança (fingerprint técnico) — NÃO CONFIRMED. Confirmação definitiva viria de uma leitura de Chip ID bem-sucedida via `bflb-mcu-tool` em modo ISP.
+| Sinal | Função | Pino físico (encapsulamento QFN88) |
+|---|---|---|
+| **GPIO39** | Pino de **Bootstrap**. Nível **1** durante o power-on = boot via UART (download de firmware) ou USB. Nível **0** = boot normal da flash. | Pino **84** (BL808C e BL808D) |
+| **UART de download** | Usa **GPIO20 e GPIO21** especificamente — não confirmado se são os mesmos pinos do console/log que já mapeamos em J1 (podem ser fisicamente diferentes) | — (não localizados na tabela ainda) |
+| **PU_CHIP** | "Chip enable", ativo em alto — funciona como o reset/habilitação geral do chip. Precisa estar em sequência de timing correta com o Bootstrap (GPIO39 deve estar estável ANTES de PU_CHIP subir, conforme diagrama de power-on sequence) | Pino **28** (BL808C) / Pino **26** (BL808D) |
+
+Correção de identificação: é o core **D0** que roda a 480MHz (não o M0 — M0 roda a 320MHz), conforme Tabela 7.6 do datasheet. Isso bate exatamente com `mcu clk 480000000` visto no `sysinfo`.
+
+**Bloqueio atual:** ainda não sabemos qual pad físico do módulo RE761-N4P (placa customizada, não uma dev board oficial Bouffalo) corresponde a GPIO39, GPIO20/21 ou PU_CHIP — só temos os NÚMEROS DE PINO DO CHIP agora, não o mapeamento chip-pino → pad-do-módulo. Isso ainda exigiria: (a) remover a blindagem metálica e contar/identificar visualmente os pinos do QFN88 diretamente, comparando com o diagrama de pinout do datasheet (Fig. 3.1/3.2), ou (b) continuidade elétrica entre os pads já expostos (J1/J2) e os pinos do chip sob a blindagem.
+
+**Status:** INFERRED com alta confiança (fingerprint técnico + agora confirmação adicional da nomenclatura exata de pinos do datasheet oficial) — identidade do SoC como BL808 ainda NÃO CONFIRMED definitivamente (falta leitura de Chip ID real via bootloader). CONFIRMED — localização exata (GPIO39/pino 84) do strap de boot e (PU_CHIP/pino 28 ou 26) do enable, **assumindo que o SoC é de fato um BL808**.
 | J2 | suspeitos anteriores (pad 35/pad 8 do chip) não re-confirmados com a numeração corrigida | UNKNOWN — revisar |
 
 Próximos passos de identificação sugeridos (não executados ainda):
