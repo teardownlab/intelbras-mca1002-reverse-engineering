@@ -132,3 +132,25 @@ O app **não faz descoberta/scan genérico** — ele chama `connectGatt()` **dir
 **Status:** CONFIRMED — mecanismo de conexão do app é `connectGatt` direto por MAC, não scan. CONFIRMED — essa abordagem não funciona via `bleak`/Windows nesta configuração. UNKNOWN — como o app originalmente obtém esse MAC BLE antes da primeira conexão (possivelmente via alguma etapa anterior de descoberta por WiFi/SoftAP, ou o MAC é derivado deterministicamente do SN/pid do produto — nota: o MAC BLE (`...cc:7c`) e o MAC WiFi (`...cc:7b`) diferem só no último byte, sugerindo derivação sequencial a partir de um MAC base único do dispositivo, potencialmente previsível).
 
 **Próximo passo sugerido:** executar o cliente do protocolo (handshake ECDH+AES documentado acima) rodando **no próprio Android** (não no PC) — via um app dedicado (ex.: escrever um app mínimo, ou usar uma ferramenta de automação BLE Android como nRF Connect combinada com scripts externos para o cálculo criptográfico) — já que `android.bluetooth.BluetoothGatt` no próprio aparelho permite a mesma conexão direta que o app oficial usa.
+
+## App Android próprio construído e testado — conexão OK, handshake ainda sem resposta (2026-09-07)
+
+Construído um app Android mínimo (Kotlin, projeto em `C:\Users\guilh\mca1002-backups\ble-tool\`, fora do repo) que implementa o handshake documentado acima, usando BouncyCastle (`bcprov-jdk18on`) para ECDH em `secp256k1`. Testado via `adb` num Galaxy A20 real (Android 11).
+
+**O que já funciona, confirmado:**
+- Conexão direta por endereço (`connectGatt(address, autoConnect=false, TRANSPORT_LE)`), igual ao app oficial — **status=0, conectado com sucesso**, desde que o MCA1002 esteja em modo de pareamento (LED azul piscando, ativado pelo botão superior).
+- Negociação de MTU (247) e descoberta de serviços — servico `0xfdd0` e características `0xfd01`/`0xfd02` encontradas corretamente, com as mesmas `properties` vistas antes (`fd01`: WRITE|WRITE_NO_RESPONSE; `fd02`: READ|NOTIFY).
+- Habilitação da notificação via descriptor CCC — confirmado `onDescriptorWrite` com `status=0`.
+- Geração de chave ECC `secp256k1` via instanciação direta da classe SPI do BouncyCastle (`org.bouncycastle.jcajce.provider.asymmetric.ec.KeyPairGeneratorSpi.EC()`), contornando o bloqueio do Android (desde a versão P) a `KeyPairGenerator.getInstance("EC","BC")` — mesmo truque usado pelo app oficial com SpongyCastle.
+- Escrita da chave pública (`cmd 0_1`, subcampo `0_3` = X‖Y de 64 bytes) na característica `0xfd01` — **confirmado `onWriteCharacteristic status=0`** tanto no app quanto no log do sistema Android (`bt_stack`/`BtGatt.GattService`).
+
+**O que não funciona ainda:** o dispositivo nunca envia nada de volta via notify após receber a chave pública, mesmo com todos os passos acima confirmados no nível de transporte (ATT). Testado com e sem o wrapper `[0xD0][tipo][tamanho]` no lado da escrita (hipótese de que esse wrapper seria usado só pelo lado de notificação, já que BLE notify não tem fragmentação nativa) — nenhuma das duas variantes obteve resposta. Testado em múltiplas tentativas, incluindo após power-cycle completo do MCA1002.
+
+**Hipóteses ainda não descartadas:**
+- Pode haver uma etapa/campo adicional no handshake que não foi capturado na leitura do código decompilado (ex.: algo em `BleHelperKt.i()`, cujo corpo não decompilou completamente devido a um erro do jadx — `JadxOverflowException`).
+- Pode haver uma condição de timing mais estrita do que a testada (a "janela" de pareamento pode fechar mais rápido do que os ~5-8s que levamos entre ativar o botão e completar conexão+MTU+servicos+descriptor+escrita).
+- Pode haver necessidade de vincular (bond) o dispositivo antes da troca de chaves, apesar do app oficial não solicitar PIN visível ao usuário.
+
+**Próximo passo recomendado:** capturar o tráfego BLE real do app oficial via **HCI snoop log root-level** (precisaria de um dispositivo Android rootado, ou um sniffer BLE dedicado por hardware, ex.: nRF52840 Dongle + Wireshark) para comparar byte a byte com o que estamos enviando — a leitura do código decompilado chegou ao limite do que consegue revelar sem essa captura real.
+
+**Ferramental herdado para a próxima sessão:** SDK Android completo instalado em `C:\Users\guilh\android-sdk`, Gradle em `C:\Users\guilh\gradle-dist\gradle-8.7`, projeto do app em `C:\Users\guilh\mca1002-backups\ble-tool\` (buildar com `gradle assembleDebug`, instalar com `adb install -r app\build\outputs\apk\debug\app-debug.apk`).
