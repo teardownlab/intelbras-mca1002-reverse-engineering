@@ -356,6 +356,18 @@ Com o mapa de memória minimamente estabelecido (bootloader `0x0`–`0x4000`, ap
 
 **Este backup ainda não foi analisado quanto a conteúdo sensível (chaves, credenciais).** Antes de considerar qualquer compartilhamento ou publicação parcial, analisar o conteúdo da região NVM3 (final da flash) especificamente.
 
+### Atualização (2026-09-10) — dump sanitizado publicado
+
+O dump foi analisado byte a byte (ver [`../firmware/README.md`](../firmware/README.md) para a metodologia completa). Achado: 3 páginas NVM3 (`0x078000`, `0x07A000`, `0x07C000`) continham dados não-apagados, incluindo um bloco de alta entropia (~48–64 bytes) consistente com uma **chave de rede Zigbee real** gerada pelo coordenador, adjacente à string pública `ZigBeeAlliance09` (essa não é segredo). Nenhuma outra região do arquivo (bootloader, aplicação, strings de identificação) continha material sensível.
+
+Essas 3 páginas foram redigidas (preenchidas com `0xFF`) e o restante do arquivo — bit-a-bit idêntico ao original — foi publicado em [`../firmware/mca1002_efr32mg21_original_firmware_sanitized.bin`](../firmware/mca1002_efr32mg21_original_firmware_sanitized.bin), a pedido do responsável do projeto, para uso de outras pessoas trabalhando com o mesmo hardware.
+
+| Campo | Valor |
+|---|---|
+| SHA-256 (sanitizado, publicado) | `358921bc93ed213085f2cfeb1d2473ec5c224865e97127ce10cf419076128548` |
+
+O dump **original, não sanitizado**, continua apenas local (fora do Git), pelo hash acima nesta seção.
+
 ## Próximos passos (somente READ-ONLY / SAFE)
 
 1. ~~Identificar a variante exata do EFR32MG21 e ler DEVINFO~~ — feito parcialmente (ver [`experiments.md`](experiments.md), entrada de leitura de `DEVINFO_PART`/`MEMINFO`/`MSIZE`): endereço base `0x0FE0E000` confirmado no Reference Manual oficial, mas `FAMILY`/`FAMILYNUM`/`MSIZE` deram valores fisicamente implausíveis (SRAM=513KB impossível para este chip). **Não confiar nesses números ainda.** Próxima tentativa: ler `DEVINFO_MODULENAME0..6` (`0x130`-`0x148`, ASCII, 4 chars/word) para identificação direta por texto.

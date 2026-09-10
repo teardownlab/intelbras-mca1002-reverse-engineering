@@ -224,9 +224,9 @@ REXENSE
 
 **`COO` muito provavelmente significa "Coordinator"** — ou seja, há indício forte (ainda não 100% confirmado) de que **este firmware específico já roda como Coordenador Zigbee**, não apenas como NCP/Router genérico. Isso é diretamente relevante para o objetivo do projeto (usar o MCA 1002 como coordenador Zigbee local). Versão do firmware: `1.7.3`. Detalhes completos, incluindo o registro byte a byte, em [`docs/experiments.md`](docs/experiments.md).
 
-## Backup completo realizado
+## Backup completo realizado — e publicado (sanitizado)
 
-Backup completo da flash (512 KB, `0x00000000`–`0x0007FFFF`) feito via `dump_image` (leitura pura). Arquivo mantido **fora do Git e fora do OneDrive** (pode conter chaves de rede reais); apenas metadados (SHA-256, tamanho) documentados em [`docs/swd.md`](docs/swd.md).
+Backup completo da flash (512 KB, `0x00000000`–`0x0007FFFF`) feito via `dump_image` (leitura pura) **antes** de qualquer gravação de firmware novo. O dump original ficou fora do Git (continha uma chave de rede Zigbee real na região NVM3). Após análise byte a byte e remoção dessa região específica (metodologia completa em [`firmware/README.md`](firmware/README.md)), o **firmware original sanitizado está publicado em [`firmware/mca1002_efr32mg21_original_firmware_sanitized.bin`](firmware/mca1002_efr32mg21_original_firmware_sanitized.bin)** — bootloader e aplicação bit-a-bit idênticos ao dispositivo real, só a região de chaves foi apagada. Metadados e hashes de ambos os arquivos em [`docs/swd.md`](docs/swd.md).
 
 ## Achado estratégico: protocolo do host é proprietário (AT commands), não EZSP padrão
 
